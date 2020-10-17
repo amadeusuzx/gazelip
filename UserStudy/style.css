@@ -1,0 +1,226 @@
+* {
+    cursor: none;
+    }
+.cursor {
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+  }
+  .cursor--small {
+    width: 10px;
+    height: 10px;
+    left: -2.5px;
+    top: -2.5px;
+    border-radius: 50%;
+    z-index: 13000;
+    background: var(--color-text);
+    background-color: rgb(255, 255, 255);
+  }
+  .cursor--canvas {
+    width: 100vw;
+    height: 100vh;
+    z-index: 12000;
+  }
+body{
+    background-color: #2d2d2d;
+    color: #ffc266;
+    font-family: 'Roboto', sans-serif;
+  }
+    #container {
+      width: 100%;
+      height: 900px;
+      background-color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 7px;
+      touch-action: none;
+      z-index: 1001;
+    }
+
+    .item {
+      border-radius: 50%;
+      touch-action: none;
+      user-select: none;
+      position: absolute;
+    }
+    .item:after {
+        content:'';
+        position:absolute;
+        top:-70px; bottom:-70px; 
+        left:-70px; right:-70px; 
+    }
+    .one {
+      width: 100px;
+      height: 100px;
+      background-color: rgb(245, 230, 99);
+      border: 10px solid rgba(136, 136, 136, .5);
+      top: 300px;
+      left: 300px;
+    }
+
+    .two {
+      width: 60px;
+      height: 60px;
+      background-color: rgba(196, 241, 190, 1);
+      border: 10px solid rgba(136, 136, 136, .5);
+      top: 500px;
+      left: 100px;
+    }
+
+    .three {
+      width: 40px;
+      height: 40px;
+      background-color: rgb(0, 255, 231);
+      border: 10px solid rgba(136, 136, 136, .5);
+      top: 300px;
+      left: 600px;
+    }
+
+    .four {
+      width: 80px;
+      height: 80px;
+      background-color: rgb(233, 210, 244);
+      border: 10px solid rgba(136, 136, 136, .5);
+      top: 250px;
+      left: 50px;
+    }
+    .five {
+      width: 120px;
+      height: 120px;
+      background-color: rgb(186, 185, 212);
+      border: 10px solid rgba(136, 136, 136, .5);
+      top: 600px;
+      left: 500px;
+     
+    }
+    .item:active {
+      opacity: .75;
+    }
+
+    .item:hover {
+      border: 10px solid rgba(5, 238, 36, 0.5);
+    }
+  #myProgress {
+    width: 420px;
+     background-color: #d9d9f2; 
+    border-radius: 10px;
+  }
+  
+  #myBar {
+    width: 0%;
+    height: 5px;
+    background-color: #ffc266;
+    border-radius: 10px;
+  }
+  
+  .logo {
+    fill: red;
+  }
+  
+  .btn-action{
+    padding-top: 10px;
+    width: 30px;
+  }
+  
+  .btn-ctn, .infos-ctn{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .infos-ctn{
+  padding-top: 20px;
+  }
+  
+  .btn-ctn > div {
+   padding: 5px;
+   margin-top: 18px;
+   margin-bottom: 18px;
+  }
+  
+  .infos-ctn > div {
+   margin-bottom: 8px;
+   color: #ffc266;
+  }
+  
+  .first-btn{
+    margin-left: 3px;
+  }
+  
+  .duration{
+    margin-left: 10px;
+  }
+  
+  .title{
+    margin-left: 10px;
+    width: 210px;
+    text-align: center;
+  }
+  
+  .player-ctn{
+    border-radius: 15px;
+    width: 420px;
+    height: auto;
+    padding: 10px;
+    background-color: #373737;
+    margin:auto;
+    margin-top: 20px;
+    margin-right: 20px;
+    z-index: 1000;
+    border: 10px solid rgba(0, 2, 0, 0.5);
+    
+  }
+
+  .player-ctn:hover{
+    border: 10px solid rgba(5, 238, 36, 0.5);
+  }
+  
+  .playlist-track-ctn{
+    display: flex;
+    background-color: #464646;
+    margin-top: 3px;
+    border-radius: 5px;
+  }
+  .playlist-track-ctn:last-child{
+    /*border: 1px solid #ffc266; */
+  }
+  
+  .playlist-track-ctn > div{
+    margin:10px;
+  }
+  .playlist-info-track{
+    width: 80%;
+  }
+  .playlist-info-track,.playlist-duration{
+    padding-top: 7px;
+    padding-bottom: 7px;
+    color: #e9cc95;
+    font-size: 14px;
+    pointer-events: none;
+  }
+  .playlist-ctn{
+     padding-bottom: 20px;
+  }
+  .active-track{
+    background: #4d4d4d;
+    color: #ffc266 !important;
+    font-weight: bold;
+    
+  }
+  
+  .active-track > .playlist-info-track,.active-track >.playlist-duration,.active-track > .playlist-btn-play{
+    color: #ffc266 !important;
+  }
+  
+  
+  .playlist-btn-play{
+    pointer-events: none;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  .fas{
+    color: #ffc266;
+    font-size: 20px;
+  }
