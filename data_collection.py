@@ -103,8 +103,7 @@ if __name__ == "__main__":
             time.sleep(0.01)
         else:
             frame = cap.read()
-            image = cv2.cvtColor(cv2.resize(
-                frame, (160, 90)), cv2.COLOR_BGR2GRAY)
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             if buffer.full():
                 buffer.get_nowait()
 
