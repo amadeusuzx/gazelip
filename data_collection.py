@@ -16,7 +16,13 @@ class VideoCapture:
         self.cap = cv2.VideoCapture(name)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
+        self.cap.set(10, 120  ) # brightness     min: 0   , max: 255 , increment:1  
+        self.cap.set(11, 50   ) # contrast       min: 0   , max: 255 , increment:1     
+        self.cap.set(12, 70   ) # saturation     min: 0   , max: 255 , increment:1
+        self.cap.set(13, 13   ) # hue         
+        self.cap.set(14, 50   ) # gain           min: 0   , max: 127 , increment:1
+        self.cap.set(15, -3   ) # exposure       min: -7  , max: -1  , increment:1
+        self.cap.set(17, 5000 ) # white_balance  min: 4000, max: 7000, increment:1
         self.recording = True
         self.q = queue.Queue(maxsize=100)
         t = threading.Thread(target=self._reader)
@@ -43,8 +49,8 @@ def recognize(record, j, c):
     size = (200, 100)
 
     lip = record[0][1]
-    overall_h = int(lip[3] * 2 * 2.3) * 5  # *4
-    overall_w = int(lip[2] * 2 * 1.8) * 5  # *4
+    overall_h = int(lip[3] * 2.3) * 5  # *4
+    overall_w = int(lip[2] * 1.8) * 5  # *4
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     i = 0
     fourcc = cv2.VideoWriter_fourcc(*'I420')
@@ -54,7 +60,7 @@ def recognize(record, j, c):
     for entry in record:
         lip = entry[1]
         frame = entry[0]
-        center = np.array((lip[0] * 2 + lip[2], lip[1] * 2 + lip[3])) * 4
+        center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
         frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
                                  center[0] - overall_w // 2:center[0] + overall_w // 2], size)
         buffer[i] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -73,9 +79,9 @@ if __name__ == "__main__":
                 'drop',  # 3
                 'last',  # 4
                 'next',  # 5
-                'play_music',  # 6
+                'play',  # 6
                 'smaller',  # 7
-                'stop_music',  # 8
+                'stop',  # 8
                 'blue',  # 9
                 'red']  # 10
     # restores the model and optimizer state_dicts
@@ -86,11 +92,12 @@ if __name__ == "__main__":
     path = "C:/Users/rkmtlab/Documents/GazeLip/zxsu"
     detector = dlib.get_frontal_face_detector()
     predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
-    print(dlib.DLIB_USE_CUDA)
+    
     buffer = queue.Queue(maxsize=15)
-    for _ in range(0):
+    for _ in range(6):
         commands.pop(0)
     c = commands.pop(0)
+    t1 = 0
     print(f"next command is {c}")
     if not os.path.exists(f"{path}/{c}"):
         os.makedirs(f"{path}/{c}")
@@ -103,7 +110,8 @@ if __name__ == "__main__":
             time.sleep(0.01)
         else:
             frame = cap.read()
-            image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            image = cv2.cvtColor(cv2.resize(
+                frame, (320, 180)), cv2.COLOR_BGR2GRAY)
             if buffer.full():
                 buffer.get_nowait()
 
@@ -122,24 +130,24 @@ if __name__ == "__main__":
                 if angle > 0.2:
                     if not mo:
                         print("capturing speech\n")
-                    t1 = 0
                     mo = True
                 if mo and angle < 0.2:
                     t1 += 1
-                    if t1 > 15:
-                        mo = False
-                        if len(record) > 30:
-                            cap.q = queue.Queue(maxsize=100)
-                            cap.recording = False
-                            recognize(record, j, c)
-                            cap.recording = True
-                            j += 1
-                        else:
-                            print("too short, please say it again\n")
-                        if j > 9:
-                            j = 1
-                            c = commands.pop(0)
-                            print(
-                                f"_______________next command is {c}_____________________")
-                            os.makedirs(f"{path}/{c}")
-                        record = []
+                if t1 > 15 or len(record) == 100:
+                    mo = False
+                    t1 = 0
+                    if len(record) > 30:
+                        cap.q = queue.Queue(maxsize=100)
+                        cap.recording = False
+                        recognize(record, j, c)
+                        cap.recording = True
+                        j += 1
+                    else:
+                        print("too short, please say it again\n")
+                    if j > 9:
+                        j = 1
+                        c = commands.pop(0)
+                        print(
+                            f"_______________next command is {c}_____________________")
+                        os.makedirs(f"{path}/{c}")
+                    record = []

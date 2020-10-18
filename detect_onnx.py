@@ -52,32 +52,27 @@ class VideoCapture:
 
 
 def recognize(record):
-    size = (60,30)
-    padding_len = 100
+    size = (100,50)
+    padding_len = len(record)
     lip = record[0][1]
-    overall_h = int(lip[3] * 2 * 2.3) *4
-    overall_w = int(lip[2] * 2 * 1.8) *4 
+    overall_h = int(lip[3] * 2.3) *4
+    overall_w = int(lip[2] * 1.8) *4 
 
     buffer = np.empty((padding_len, size[1], size[0], 3), np.dtype('float32'))
     count = 0
-    print(overall_h,overall_w)
     for entry in record:
         lip = entry[1]
         frame = entry[0]
-        center = np.array((lip[0] * 2 + lip[2], lip[1] * 2 + lip[3])) *4
+        center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
         frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
                            center[0] - overall_w // 2:center[0] + overall_w // 2], size)
-
+        cv2.imshow("frame",frame)
+        cv2.waitKey(1)
         buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         count += 1
     
-
-
     buffer = ((buffer - np.mean(buffer)) / np.std(buffer)).transpose(3,0,1,2)
     buffer = np.expand_dims(buffer, axis=0)
-
-
-
 
     ort_inputs = {ort_session.get_inputs()[0].name: buffer}
     ort_outs = ort_session.run(None, ort_inputs)
@@ -187,8 +182,7 @@ if __name__ == "__main__":
     global onnx_model
     global ort_session
 
-    ort_session = onnxruntime.InferenceSession("k5l2_2_30_60_ball.onnx")
-
+    ort_session = onnxruntime.InferenceSession("model_archive/res2_5size50_100.onnx")
 
     mo = False
     record = []
@@ -200,7 +194,7 @@ if __name__ == "__main__":
             time.sleep(0.01)
         else:
             frame = cap.read()
-            image = cv2.cvtColor(cv2.resize(frame, (160, 90)), cv2.COLOR_BGR2GRAY)
+            image = cv2.cvtColor(cv2.resize(frame, (320, 180)), cv2.COLOR_BGR2GRAY)
             if buffer.full():
                 buffer.get_nowait()
 
