@@ -12,8 +12,9 @@ import threading
 import queue
 
 import onnxruntime
+import pyautogui
+import socketserver
 
-import socketserver 
 
 class VideoCapture:
 
@@ -21,15 +22,15 @@ class VideoCapture:
         self.cap = cv2.VideoCapture(name)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-  
+
         self.recording = True
         self.q = queue.Queue(maxsize=100)
         t = threading.Thread(target=self._reader)
         t.daemon = True
-        t.start()   
-        
+        t.start()
+
     def _reader(self):
-        size = (1280,720)
+        size = (1280, 720)
         # fourcc = cv2.VideoWriter_fourcc(*'I420')
         # fps = 30
         # save_name = "./test.avi"
@@ -51,86 +52,95 @@ class VideoCapture:
 
 
 def recognize(record):
-    size = (86,48)
-    padding_len = len(record)
+    size = (96,48)  # 200*0.6*0.75
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3*0.7) *4
-    overall_w = int(lip[2] * 1.8*0.8) *4
+    overall_h = int(lip[3] * 2.3* 5*0.8)  # 6*0.75
+    overall_w = int(lip[2] * 1.8* 5*0.8)  # 6*0.75
     center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
-    buffer = np.empty((padding_len, size[1], size[0], 3), np.dtype('float32'))
+    buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     count = 0
+    # cv2.namedWindow("window", cv2.WINDOW_NORMAL)  
     for entry in record:
         lip = entry[1]
+        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
+        if np.linalg.norm(new_center - center) < overall_h/2:
+            center = new_center
         frame = entry[0]
-        
         frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
-                           center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+                                 center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+        # cv2.imshow("window",frame)
+        # cv2.waitKey(33)
         buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         count += 1
-    
-    buffer = ((buffer - np.mean(buffer)) / np.std(buffer)).transpose(3,0,1,2)
+
+    buffer = ((buffer - np.mean(buffer)) /
+              np.std(buffer)).transpose(3, 0, 1, 2)
     buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
 
     outputs = lip_model(buffer).cpu().detach().numpy()
-    commands = ['close_window',
-                       'copy_this',
-                       'drag',
-                       'drop',
-                       'enlarge_picture',
-                       'fast_forward',
-                       'fast_rewind',
-                       'paste_here',
-                       'pause_video',
-                       'play_video',
-                       'scroll_down',
-                       'scroll_to_bottom',
-                       'scroll_up',
-                       'select',
-                       'speed_down',
-                       'speed_up',
-                       'translate',
-                       'wikipedia']
+    commands = ['click_here', 'close_window', 'down_scroll', 'drag_g', 'drop_here', 'go_backward', 'go_forward',
+            'scroll_up', 'search_this', 'zoom_in', 'zoom_out']
+    # commands = ['close_window',
+    #             'copy_this',
+    #             'drag',
+    #             'drop',
+    #             'enlarge_picture',
+    #             'fast_forward',
+    #             'fast_rewind',
+    #             'paste_here',
+    #             'pause_video',
+    #             'play_video',
+    #             'scroll_down',
+    #             'scroll_to_bottom',
+    #             'scroll_up',
+    #             'select',
+    #             'speed_down',
+    #             'speed_up',
+    #             'translate',
+    #             'wikipedia']
     pred_index = outputs[0].argmax()
     pred = commands[pred_index]
     # if pred == "drag":
     #     pyautogui.mouseDown()
-    # if pred in ["drop_here","zoom_in"]:
+    # elif pred == "drop":
     #     pyautogui.mouseUp()
-    print(pred)
-    sorted_indexs = outputs[0][0].argsort()
+    # elif pred == "copy_this":
+    #     pyautogui.click()
+    # elif pred =="select":
+    #     pyautogui.click(clicks=2)
+    # elif pred =="paste_here":
+    #     pyautogui.click()
+    #     pyautogui.hotkey("ctrl","v")
+    sorted_commands = sorted(list(zip(outputs[0], commands)))
 
-    send_str = " ".join([str(s) for s in sorted_indexs])
-    print(send_str)
-    # send_msg(conn,send_str.encode('utf-8'))
-    
-    for s in sorted(list(zip(outputs[0],commands)),reverse=True):
+    send_str = " ".join([s for _, s in sorted_commands])
+    for s in sorted_commands:
         print(s)
+    # send_msg(conn,send_str.encode('utf-8'))
 
-    # print(pred)
 
-
- 
 def get_headers(data):
 
     header_dict = {}
     data = str(data, encoding='utf-8')
- 
+
     header, body = data.split('\r\n\r\n', 1)
     header_list = header.split('\r\n')
     for i in range(0, len(header_list)):
         if i == 0:
             if len(header_list[i].split(' ')) == 3:
-                header_dict['method'], header_dict['url'], header_dict['protocol'] = header_list[i].split(' ')
+                header_dict['method'], header_dict['url'], header_dict['protocol'] = header_list[i].split(
+                    ' ')
         else:
             k, v = header_list[i].split(':', 1)
             header_dict[k] = v.strip()
     return header_dict
- 
- 
+
+
 def send_msg(conn, msg_bytes):
 
     import struct
- 
+
     token = b"\x81"
     length = len(msg_bytes)
     if length < 126:
@@ -139,10 +149,11 @@ def send_msg(conn, msg_bytes):
         token += struct.pack("!BH", 126, length)
     else:
         token += struct.pack("!BQ", 127, length)
- 
+
     msg = token + msg_bytes
     conn.send(msg)
     return True
+
 
 if __name__ == "__main__":
 
@@ -151,12 +162,12 @@ if __name__ == "__main__":
     import hashlib
 
     # global conn
- 
+
     # sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # sock.bind(('127.0.0.1', 10130))
     # sock.listen(5)
- 
+
     # conn, address = sock.accept()
     # data = conn.recv(1024)
     # headers = get_headers(data)
@@ -165,12 +176,11 @@ if __name__ == "__main__":
     #                "Connection:Upgrade\r\n" \
     #                "Sec-WebSocket-Accept:%s\r\n" \
     #                "WebSocket-Location:ws://%s%s\r\n\r\n"
- 
+
     # value = headers['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
     # ac = base64.b64encode(hashlib.sha1(value.encode('utf-8')).digest())
     # response_str = response_tpl % (ac.decode('utf-8'), headers['Host'], headers['url'])
     # conn.send(bytes(response_str, encoding='utf-8'))
- 
 
     global detector
     global predictor
@@ -179,18 +189,19 @@ if __name__ == "__main__":
     detector = dlib.get_frontal_face_detector()
     predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
     print("recognition model ready")
-    
 
     from network import R2Plus1DClassifier
     import torch
-    
+
     global lip_model
     print("reading lip model")
     lip_model = R2Plus1DClassifier(num_classes=11, layer_sizes=[2,2,2,2,2])
-    state_dicts = torch.load("zxsu_dataset1_puremodel.pt", map_location = torch.device("cuda:0"))
+    state_dicts = torch.load(
+        "zxsu_dataset1_puremodel.pt", map_location=torch.device("cuda:0"))
     lip_model.load_state_dict(state_dicts)
     lip_model.cuda()
     lip_model.eval()
+    lip_model(torch.zeros(1,3,50,48,96,device="cuda:0"))
     print("lip model ready")
 
     print("camera preparing")
@@ -208,7 +219,8 @@ if __name__ == "__main__":
             time.sleep(0.01)
         else:
             frame = cap.read()
-            image = cv2.cvtColor(cv2.resize(frame, (320, 180)), cv2.COLOR_BGR2GRAY)
+            image = cv2.cvtColor(cv2.resize(
+                frame, (320, 180)), cv2.COLOR_BGR2GRAY)
             if buffer.full():
                 buffer.get_nowait()
 
@@ -221,7 +233,8 @@ if __name__ == "__main__":
                     record.append(buffer.get())
             if rects:
                 lip = cv2.boundingRect(shape[48:68])
-                angle = np.linalg.norm(shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
+                angle = np.linalg.norm(
+                    shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
                 buffer.put_nowait([frame, lip])
                 if angle > 0.1:
                     if not mo:
@@ -230,7 +243,7 @@ if __name__ == "__main__":
                     t1 = 0
                 if mo and angle < 0.1:
                     t1 += 1
-                if t1 > 15 or len(record) == 100:
+                if t1 > 15 or len(record) == 90:
                     mo = False
                     print("speech finished")
                     if len(record) > 30:

@@ -8,4 +8,4 @@ demo_dataset
 *.tar.gz
 *.pt
 *.onnx
-test_model_puremodel
+

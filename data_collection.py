@@ -9,6 +9,8 @@ from imutils import face_utils
 import threading
 import queue
 import random
+import msvcrt
+from termcolor import colored
 
 class VideoCapture:
 
@@ -49,9 +51,10 @@ def recognize(record, j, c):
     size = (200, 100)
 
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3) * 6  # *4
-    overall_w = int(lip[2] * 1.8) * 6  # *4
-    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3])) * 4
+    overall_h = int(lip[3] * 2.3) * 5  # *4
+    overall_w = int(lip[2] * 1.8) * 5  # *4
+    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
+
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     i = 0
     fourcc = cv2.VideoWriter_fourcc(*'I420')
@@ -60,6 +63,9 @@ def recognize(record, j, c):
     video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
     for entry in record:
         lip = entry[1]
+        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
+        if np.linalg.norm(new_center - center) < overall_h/2:
+            center = new_center
         frame = entry[0]
         frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
                                  center[0] - overall_w // 2:center[0] + overall_w // 2], size)
@@ -121,7 +127,7 @@ if __name__ == "__main__":
     mo = False
     record = []
     j = 0
-    k = 0
+    k = 30                                                                             
     cleared = False
     while True:
         if cap.q.empty():
@@ -134,10 +140,10 @@ if __name__ == "__main__":
                 if not cleared:
                     os.system('cls')
                     print(
-                        f"_______________{c}_____________________")
+                        f"_______________{colored(c,'cyan',attrs=['bold'])}_____________________")
                     cleared = True
                 buffer.get_nowait()
-            
+
             rects = detector(image, 1)
             for (_, rect) in enumerate(rects):
                 shape = predictor(image, rect)
@@ -155,30 +161,34 @@ if __name__ == "__main__":
                         if not mo:
                             print("capturing speech")
                             mo = True
-                        t1=0   
-                    if mo and angle < 0.1:
+                        t1 = 0
+                    elif mo and angle <= 0.1:
                         t1 += 1
-                    if t1 > 15 or len(record) == 100:
+                    if t1 > 15 or len(record) == 90:
+                        cap.recording = False
+                        print(
+                            "Record captured! Press"+colored(' ENTER ↩ ','red')+"to save it, or any other key to discard")
+                        if msvcrt.getch() == b' ':
+                            if len(record) > 40:
+                                recognize(record, k, c)
+                                j += 1
+                                if j == len(origin_commands):
+                                    commands = random.sample(
+                                        origin_commands, len(origin_commands))
+                                    k += 1
+                                    j = 0
+                                    print(f"\n\ncollected {k} groups")
+                                c = commands.pop(0)
+                                if not os.path.exists(f"{path}/{c}"):
+                                    os.makedirs(f"{path}/{c}")
+                                
+                            else:
+                                print("Too short, say the command again")
+                        else:
+                            print("Record discarded")
+                        record = []
+                        cleared = False
+                        cap.q = queue.Queue(maxsize=100)
+                        cap.recording = True
                         mo = False
                         t1 = 0
-                        if len(record) > 30:
-                            cap.recording = False
-                            recognize(record, k, c)
-                            record = []
-                            j += 1
-                            if j == len(origin_commands):
-                                commands = random.sample(origin_commands, len(origin_commands))
-                                k += 1
-                                j = 0
-                                print(f"collected {k} groups")
-                                time.sleep(1)
-                            c = commands.pop(0)
-                            if not os.path.exists(f"{path}/{c}"):
-                                os.makedirs(f"{path}/{c}")
-                            cleared = False
-
-                            cap.q = queue.Queue(maxsize=100) 
-                            cap.recording = True
-
-                        else:
-                            print("too short, please say it again")

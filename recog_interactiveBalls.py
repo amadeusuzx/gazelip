@@ -72,8 +72,7 @@ def recognize(record):
     buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
 
     outputs = lip_model(buffer).cpu().detach().numpy()
-    # commands = ['click_here', 'close_window', 'down_scroll', 'drag_g', 'drop_here', 'go_backward', 'go_forward',
-    #             'scroll_up', 'search_this', 'zoom_in', 'zoom_out']
+
     commands = ['bigger',       #0
                 'bubble',       #1
                 'drag',         #2
