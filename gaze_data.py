@@ -26,11 +26,14 @@ def gaze_data(eyetracker):
         right = global_gaze_data["right_gaze_point_on_display_area"]
         if not (math.isnan(left[0]) or math.isnan(right[0])):
             curr_gaze_point = np.array([(left[0]+right[0])/2,(left[1]+right[1])/2])
-            if np.linalg.norm((curr_gaze_point - opti_gaze_point)) > 0.1:
+            dis = np.linalg.norm((curr_gaze_point - opti_gaze_point))
+            if dis > 0.1:
                 opti_gaze_point = curr_gaze_point
+            elif dis > 0.05:
+                opti_gaze_point = opti_gaze_point * 0.7 + curr_gaze_point * 0.3
             else:
                 opti_gaze_point = opti_gaze_point * 0.9 + curr_gaze_point * 0.1
-            pyautogui.moveTo(opti_gaze_point[0]*1920,opti_gaze_point[1]*1080)
+            pyautogui.moveTo(opti_gaze_point[0]*1920*2,opti_gaze_point[1]*1080*2)
     eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, gaze_data_callback)
     print("Unsubscribed from gaze data.")
 

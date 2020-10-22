@@ -5,9 +5,10 @@ class VideoCapture:
 
     def __init__(self, name):
         self.cap = cv2.VideoCapture(name)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        self.cap.set(cv2.CAP_PROP_EXPOSURE,-7)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE,-6)
+        print(self.cap.set(cv2.CAP_PROP_FPS, 10))
         self.recording = True
         self.q = queue.Queue(maxsize=100)
         t = threading.Thread(target=self._reader)
@@ -26,9 +27,9 @@ class VideoCapture:
                 ret, frame = self.cap.read()
                 if not ret:
                     print("camera faliure")
-                    break
                 # video_writer.write(frame)
-                self.q.put_nowait(frame)
+                else:
+                    self.q.put_nowait(frame)
             else:
                 time.sleep(0.1)
 
@@ -37,7 +38,7 @@ class VideoCapture:
 import cv2
 import sys
 
-camera_id = 2
+camera_id = 0
 delay = 1
 window_name = 'frame'
 cap = VideoCapture(camera_id)

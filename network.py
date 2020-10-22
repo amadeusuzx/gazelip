@@ -102,7 +102,7 @@ class R2Plus1DNet(nn.Module):
         super(R2Plus1DNet, self).__init__()
 
         # first conv, with stride 1x2x2 and kernel size 3x7x7
-        self.conv1 = SpatioTemporalConv(3, 64, [3, 5, 5], stride=[1, 2, 2], padding=[1, 2, 2])
+        self.conv1 = SpatioTemporalConv(3, 64, [3,3, 3], stride=[1, 2, 2], padding=[1, 1, 1])
         # output of conv2 is same size as of conv1, no downsampling needed. kernel_size 3x3x3
         self.conv2 = SpatioTemporalResLayer(64, 64, 3, layer_sizes[0], block_type=block_type)
         # each of the final three layers doubles num_channels, while performing downsampling 
