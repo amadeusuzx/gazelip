@@ -15,7 +15,6 @@ import onnxruntime
 import pyautogui
 import socketserver
 
-
 class VideoCapture:
 
     def __init__(self, name):
@@ -31,10 +30,10 @@ class VideoCapture:
 
     def _reader(self):
         size = (1280, 720)
-        # fourcc = cv2.VideoWriter_fourcc(*'I420')
-        # fps = 30
-        # save_name = "./test.avi"
-        # video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
+        fourcc = cv2.VideoWriter_fourcc(*'I420')
+        fps = 30
+        save_name = "./test.avi"
+        video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
         while True:
 
             if self.recording:
@@ -42,7 +41,7 @@ class VideoCapture:
                 if not ret:
                     print("camera faliure")
                     break
-                # video_writer.write(frame)
+                video_writer.write(frame)
                 self.q.put_nowait(frame)
             else:
                 time.sleep(0.1)
@@ -77,47 +76,57 @@ def recognize(record):
               np.std(buffer)).transpose(3, 0, 1, 2)
     buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
 
-    outputs = lip_model(buffer).cpu().detach().numpy()
-    commands = ['click_here', 'close_window', 'down_scroll', 'drag_g', 'drop_here', 'go_backward', 'go_forward',
-            'scroll_up', 'search_this', 'zoom_in', 'zoom_out']
-    # commands = ['close_window',
-    #             'copy_this',
-    #             'drag',
-    #             'drop',
-    #             'enlarge_picture',
-    #             'fast_forward',
-    #             'fast_rewind',
-    #             'paste_here',
-    #             'pause_video',
-    #             'play_video',
-    #             'scroll_down',
-    #             'scroll_to_bottom',
-    #             'scroll_up',
-    #             'select',
-    #             'speed_down',
-    #             'speed_up',
-    #             'translate',
-    #             'wikipedia']
+    outputs = lip_model(buffer).cpu().detach().numpy()  
+    commands = ['close_window',
+                'copy_this',
+                'drag',
+                'drop',
+                'enlarge_picture',
+                'fast_forward',
+                'fast_rewind',
+                'paste_here',
+                'pause_video',
+                'play_video',
+                'scroll_down',
+                'scroll_to_bottom',
+                'scroll_up',
+                'select',
+                'speed_down',
+                'speed_up',
+                'translate',
+                'wikipedia']
     pred_index = outputs[0].argmax()
-    pred = commands[pred_index]
-    # if pred == "drag":
-    #     pyautogui.mouseDown()
-    # elif pred == "drop":
-    #     pyautogui.mouseUp()
-    # elif pred == "copy_this":
-    #     pyautogui.click()
-    # elif pred =="select":
-    #     pyautogui.click(clicks=2)
-    # elif pred =="paste_here":
-    #     pyautogui.click()
-    #     pyautogui.hotkey("ctrl","v")
     sorted_commands = sorted(list(zip(outputs[0], commands)))
-
     send_str = " ".join([s for _, s in sorted_commands])
     for s in sorted_commands:
         print(s)
-    # send_msg(conn,send_str.encode('utf-8'))
+    send_msg(conn,send_str.encode('utf-8')) 
+    data = get_data(conn.recv(8096))
+    if data:
+        pass
 
+        
+def get_data(info):
+    payload_len = info[1] & 127
+    if payload_len == 126:
+        extend_payload_len = info[2:4]
+        mask = info[4:8]
+        decoded = info[8:]
+    elif payload_len == 127:
+        extend_payload_len = info[2:10]
+        mask = info[10:14]
+        decoded = info[14:]
+    else:
+        extend_payload_len = None
+        mask = info[2:6]
+        decoded = info[6:]
+
+    bytes_list = bytearray() 
+    for i in range(len(decoded)):
+        chunk = decoded[i] ^ mask[i % 4]
+        bytes_list.append(chunk)
+    body = str(bytes_list, encoding='utf-8')
+    return body
 
 def get_headers(data):
 
@@ -137,8 +146,8 @@ def get_headers(data):
     return header_dict
 
 
-def send_msg(conn, msg_bytes):
-
+def send_msg(conn, msg_bytes):                      
+    
     import struct
 
     token = b"\x81"
@@ -161,26 +170,26 @@ if __name__ == "__main__":
     import base64
     import hashlib
 
-    # global conn
+    global conn
 
-    # sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # sock.bind(('127.0.0.1', 10130))
-    # sock.listen(5)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(('127.0.0.1', 10130))
+    sock.listen(5)
 
-    # conn, address = sock.accept()
-    # data = conn.recv(1024)
-    # headers = get_headers(data)
-    # response_tpl = "HTTP/1.1 101 Switching Protocols\r\n" \
-    #                "Upgrade:websocket\r\n" \
-    #                "Connection:Upgrade\r\n" \
-    #                "Sec-WebSocket-Accept:%s\r\n" \
-    #                "WebSocket-Location:ws://%s%s\r\n\r\n"
+    conn, address = sock.accept()
+    data = conn.recv(1024)
+    headers = get_headers(data)
+    response_tpl = "HTTP/1.1 101 Switching Protocols\r\n" \
+                   "Upgrade:websocket\r\n" \
+                   "Connection:Upgrade\r\n" \
+                   "Sec-WebSocket-Accept:%s\r\n" \
+                   "WebSocket-Location:ws://%s%s\r\n\r\n"
 
-    # value = headers['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
-    # ac = base64.b64encode(hashlib.sha1(value.encode('utf-8')).digest())
-    # response_str = response_tpl % (ac.decode('utf-8'), headers['Host'], headers['url'])
-    # conn.send(bytes(response_str, encoding='utf-8'))
+    value = headers['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+    ac = base64.b64encode(hashlib.sha1(value.encode('utf-8')).digest())
+    response_str = response_tpl % (ac.decode('utf-8'), headers['Host'], headers['url'])
+    conn.send(bytes(response_str, encoding='utf-8'))
 
     global detector
     global predictor
@@ -195,9 +204,9 @@ if __name__ == "__main__":
 
     global lip_model
     print("reading lip model")
-    lip_model = R2Plus1DClassifier(num_classes=11, layer_sizes=[2,2,2,2,2])
+    lip_model = R2Plus1DClassifier(num_classes=18, layer_sizes=[3,3,2,2,2])
     state_dicts = torch.load(
-        "zxsu_dataset1_puremodel.pt", map_location=torch.device("cuda:0"))
+        "demo35.pt", map_location=torch.device("cuda:0"))
     lip_model.load_state_dict(state_dicts)
     lip_model.cuda()
     lip_model.eval()

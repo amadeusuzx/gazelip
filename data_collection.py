@@ -12,19 +12,13 @@ import random
 import msvcrt
 from termcolor import colored
 
+
 class VideoCapture:
 
     def __init__(self, name):
         self.cap = cv2.VideoCapture(name)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        # self.cap.set(10, 120  ) # brightness     min: 0   , max: 255 , increment:1
-        # self.cap.set(11, 50   ) # contrast       min: 0   , max: 255 , increment:1
-        # self.cap.set(12, 70   ) # saturation     min: 0   , max: 255 , increment:1
-        # self.cap.set(13, 13   ) # hue
-        # self.cap.set(14, 50   ) # gain           min: 0   , max: 127 , increment:1
-        # self.cap.set(15, -3   ) # exposure       min: -7  , max: -1  , increment:1
-        # self.cap.set(17, 5000 ) # white_balance  min: 4000, max: 7000, increment:1
         self.recording = True
         self.q = queue.Queue(maxsize=100)
         t = threading.Thread(target=self._reader)
@@ -136,11 +130,11 @@ if __name__ == "__main__":
             frame = cap.read()
             image = cv2.cvtColor(cv2.resize(
                 frame, (320, 180)), cv2.COLOR_BGR2GRAY)
-            if buffer.full():
+            if buffer.full():   
                 if not cleared:
                     os.system('cls')
                     print(
-                        f"_______________{colored(c,'cyan',attrs=['bold'])}_____________________")
+                        f"_______________{colored(c,'cyan',attrs=['bold'])}_____________________\n\n\n")
                     cleared = True
                 buffer.get_nowait()
 
@@ -167,7 +161,7 @@ if __name__ == "__main__":
                     if t1 > 15 or len(record) == 90:
                         cap.recording = False
                         print(
-                            "Record captured! Press"+colored(' ENTER ↩ ','red')+"to save it, or any other key to discard")
+                            "Record captured! Press Space ␣ to save it, or Z to discard")
                         if msvcrt.getch() == b' ':
                             if len(record) > 40:
                                 recognize(record, k, c)
@@ -177,13 +171,16 @@ if __name__ == "__main__":
                                         origin_commands, len(origin_commands))
                                     k += 1
                                     j = 0
-                                    print(f"\n\ncollected {k} groups")
+                                    print(f"\n\nCollected {k} groups. Press Enter key to continue")
+                                    while True:
+                                        if msvcrt.getch() == b'\r':
+                                            break
                                 c = commands.pop(0)
                                 if not os.path.exists(f"{path}/{c}"):
                                     os.makedirs(f"{path}/{c}")
                                 
                             else:
-                                print("Too short, say the command again")
+                                print("colored(' Too short, say the command again ','red')")
                         else:
                             print("Record discarded")
                         record = []
