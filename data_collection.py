@@ -121,7 +121,7 @@ if __name__ == "__main__":
     mo = False
     record = []
     j = 0
-    k = 30                                                                             
+    k = 35                                                                           
     cleared = False
     while True:
         if cap.q.empty():

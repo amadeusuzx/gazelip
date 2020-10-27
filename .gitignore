@@ -9,6 +9,6 @@ demo_dataset
 *.pt
 *.onnx
 
-test.avi
+*.avi
 __pycache__/network.cpython-37.pyc
-demo30_web_model.pt_puremodel
+*pt_puremodel

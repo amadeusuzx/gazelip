@@ -1,19 +1,27 @@
 import os
 import time
+import requests
+from io import BytesIO
+import win32clipboard
+
+import threading
+import queue
+import socket
+import base64
+import hashlib
 
 import numpy as np
 import cv2
 import dlib
+from PIL import Image
 from imutils import face_utils
 from network import R2Plus1DClassifier
 import torch
 
-import threading
-import queue
-
-import onnxruntime
 import pyautogui
-import socketserver
+import pyperclip
+
+
 
 class VideoCapture:
 
@@ -32,7 +40,7 @@ class VideoCapture:
         size = (1280, 720)
         fourcc = cv2.VideoWriter_fourcc(*'I420')
         fps = 30
-        save_name = "./test.avi"
+        save_name = "./test1.avi"
         video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
         while True:
 
@@ -49,75 +57,31 @@ class VideoCapture:
     def read(self):
         return self.q.get()
 
+def send_to_clipboard(clip_type, data):
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(clip_type, data)
+    win32clipboard.CloseClipboard()
 
-def recognize(record):
-    size = (96,48)  # 200*0.6*0.75
-    lip = record[0][1]
-    overall_h = int(lip[3] * 2.3* 5*0.8)  # 6*0.75
-    overall_w = int(lip[2] * 1.8* 5*0.8)  # 6*0.75
-    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
-    buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
-    count = 0
-    # cv2.namedWindow("window", cv2.WINDOW_NORMAL)  
-    for entry in record:
-        lip = entry[1]
-        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
-        if np.linalg.norm(new_center - center) < overall_h/2:
-            center = new_center
-        frame = entry[0]
-        frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
-                                 center[0] - overall_w // 2:center[0] + overall_w // 2], size)
-        # cv2.imshow("window",frame)
-        # cv2.waitKey(33)
-        buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        count += 1
+def copy_image(url):
 
-    buffer = ((buffer - np.mean(buffer)) /
-              np.std(buffer)).transpose(3, 0, 1, 2)
-    buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
+    response = requests.get(url)
+    img = Image.open(BytesIO(response.content))
+    output = BytesIO()
+    img.convert("RGB").save(output, "BMP")
+    data = output.getvalue()[14:]
+    output.close()
+    send_to_clipboard(win32clipboard.CF_DIB, data)
 
-    outputs = lip_model(buffer).cpu().detach().numpy()  
-    commands = ['close_window',
-                'copy_this',
-                'drag',
-                'drop',
-                'enlarge_picture',
-                'fast_forward',
-                'fast_rewind',
-                'paste_here',
-                'pause_video',
-                'play_video',
-                'scroll_down',
-                'scroll_to_bottom',
-                'scroll_up',
-                'select',
-                'speed_down',
-                'speed_up',
-                'translate',
-                'wikipedia']
-    pred_index = outputs[0].argmax()
-    sorted_commands = sorted(list(zip(outputs[0], commands)))
-    send_str = " ".join([s for _, s in sorted_commands])
-    for s in sorted_commands:
-        print(s)
-    send_msg(conn,send_str.encode('utf-8')) 
-    data = get_data(conn.recv(8096))
-    if data:
-        pass
-
-        
 def get_data(info):
     payload_len = info[1] & 127
     if payload_len == 126:
-        extend_payload_len = info[2:4]
         mask = info[4:8]
         decoded = info[8:]
     elif payload_len == 127:
-        extend_payload_len = info[2:10]
         mask = info[10:14]
         decoded = info[14:]
     else:
-        extend_payload_len = None
         mask = info[2:6]
         decoded = info[6:]
 
@@ -133,7 +97,7 @@ def get_headers(data):
     header_dict = {}
     data = str(data, encoding='utf-8')
 
-    header, body = data.split('\r\n\r\n', 1)
+    header, _ = data.split('\r\n\r\n', 1)
     header_list = header.split('\r\n')
     for i in range(0, len(header_list)):
         if i == 0:
@@ -163,22 +127,91 @@ def send_msg(conn, msg_bytes):
     conn.send(msg)
     return True
 
+def recognize(record):
+    global CONNECTION
+    global DETECTOR
+    global PREDICTOR
+    global LIP_MODEL
+    global DRAGGING
+    
+    size = (96,48)  # 200*0.6*0.75
+    lip = record[0][1]
+    overall_h = int(lip[3] * 2.3* 5*0.8)  # 6*0.75
+    overall_w = int(lip[2] * 1.8* 5*0.8)  # 6*0.75
+    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
+    buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
+    count = 0
+    # cv2.namedWindow("window", cv2.WINDOW_NORMAL)  
+    for entry in record:
+        lip = entry[1]
+        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 4
+        if np.linalg.norm(new_center - center) < overall_h/2:
+            center = new_center
+        frame = entry[0]
+        frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
+                                 center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+        # cv2.imshow("window",frame)
+        # cv2.waitKey(33)
+        buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        count += 1
+
+    buffer = ((buffer - np.mean(buffer)) /
+              np.std(buffer)).transpose(3, 0, 1, 2)
+    buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
+
+    outputs = LIP_MODEL(buffer).cpu().detach().numpy()  
+    commands = ['close_window',
+                'copy_this',
+                'drag',
+                'drop',
+                'enlarge_picture',
+                'fast_forward',
+                'fast_rewind',
+                'paste_here',
+                'pause_video',
+                'play_video',
+                'scroll_down',
+                'scroll_to_bottom',
+                'scroll_up',
+                'select',
+                'speed_down',
+                'speed_up',
+                'translate',
+                'wikipedia']
+
+    sorted_commands = sorted(list(zip(outputs[0], commands)))
+    send_str = " ".join([s for _, s in sorted_commands])
+    for s in sorted_commands:
+        print(s)
+    if DRAGGING:
+        pyautogui.mouseUp()
+    else:
+        send_msg(CONNECTION,send_str.encode('utf-8')) 
+        data = get_data(CONNECTION.recv(8096))
+        while not (data=="okay"):
+            if data == "drag":
+                pyautogui.mouseDown()
+                DRAGGING = True
+            elif data == "paste here":
+                pyautogui.hotkey("ctrl","v")
+            elif data == "copy text":
+                text_data = get_data(CONNECTION.recv(8096))
+                pyperclip.copy(text_data)
+            elif data == "copy image":
+                url = get_data(CONNECTION.recv(8096))
+                copy_image(url)
+            data = get_data(CONNECTION.recv(8096))
+            
 
 if __name__ == "__main__":
-
-    import socket
-    import base64
-    import hashlib
-
-    global conn
-
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('127.0.0.1', 10130))
     sock.listen(5)
 
-    conn, address = sock.accept()
-    data = conn.recv(1024)
+    CONNECTION, address = sock.accept()
+    data = CONNECTION.recv(1024)
     headers = get_headers(data)
     response_tpl = "HTTP/1.1 101 Switching Protocols\r\n" \
                    "Upgrade:websocket\r\n" \
@@ -189,39 +222,35 @@ if __name__ == "__main__":
     value = headers['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
     ac = base64.b64encode(hashlib.sha1(value.encode('utf-8')).digest())
     response_str = response_tpl % (ac.decode('utf-8'), headers['Host'], headers['url'])
-    conn.send(bytes(response_str, encoding='utf-8'))
+    CONNECTION.send(bytes(response_str, encoding='utf-8'))
 
-    global detector
-    global predictor
+
 
     print("reading face recognition model")
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+    DETECTOR = dlib.get_frontal_face_detector()
+    PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
     print("recognition model ready")
 
-    from network import R2Plus1DClassifier
-    import torch
-
-    global lip_model
     print("reading lip model")
-    lip_model = R2Plus1DClassifier(num_classes=18, layer_sizes=[3,3,2,2,2])
+    LIP_MODEL = R2Plus1DClassifier(num_classes=18, layer_sizes=[3,3,2,2,2])
     state_dicts = torch.load(
-        "demo35.pt", map_location=torch.device("cuda:0"))
-    lip_model.load_state_dict(state_dicts)
-    lip_model.cuda()
-    lip_model.eval()
-    lip_model(torch.zeros(1,3,50,48,96,device="cuda:0"))
+        "demo40_web_model.pt_puremodel", map_location=torch.device("cuda:0"))
+    LIP_MODEL.load_state_dict(state_dicts)
+    LIP_MODEL.cuda()
+    LIP_MODEL.eval()
+    LIP_MODEL(torch.zeros(1,3,50,48,96,device="cuda:0"))
     print("lip model ready")
 
     print("camera preparing")
-    cap = VideoCapture(0)
+    cap = VideoCapture(1)
     print("camera ready")
 
+    DRAGGING = False
+
     buffer = queue.Queue(maxsize=15)
-    mo = False
+    mouth_open = False
     record = []
 
-    j = 0
     t1 = 0
     while True:
         if cap.q.empty():
@@ -233,11 +262,11 @@ if __name__ == "__main__":
             if buffer.full():
                 buffer.get_nowait()
 
-            rects = detector(image, 1)
+            rects = DETECTOR(image, 1)
             for (_, rect) in enumerate(rects):
-                shape = predictor(image, rect)
+                shape = PREDICTOR(image, rect)
                 shape = face_utils.shape_to_np(shape)
-            if mo:
+            if mouth_open:
                 while not buffer.empty():
                     record.append(buffer.get())
             if rects:
@@ -246,19 +275,21 @@ if __name__ == "__main__":
                     shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
                 buffer.put_nowait([frame, lip])
                 if angle > 0.1:
-                    if not mo:
+                    if not mouth_open:
                         print("capturing speech")
-                        mo = True
+                        mouth_open = True
+                        send_msg(CONNECTION,"mo".encode('utf-8')) 
                     t1 = 0
-                if mo and angle < 0.1:
+                if mouth_open and angle < 0.15:
                     t1 += 1
                 if t1 > 15 or len(record) == 90:
-                    mo = False
+                    mouth_open = False
                     print("speech finished")
-                    if len(record) > 30:
+                    if len(record) > 45:
                         cap.recording = False
                         cap.q = queue.Queue(maxsize=100)
                         recognize(record)
                         cap.recording = True
+                    send_msg(CONNECTION,"mc".encode('utf-8')) 
                     record = []
                     t1 = 0
