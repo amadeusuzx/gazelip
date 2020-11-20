@@ -128,19 +128,19 @@ def recognize(record):
     global LIP_MODEL
     global COMMANDS
     global DRAGGING
-    r = 5
+
     t1 = time.time()
     size = (96,48)  # 200*0.6*0.75
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3* r)  # 7.5*0.8
-    overall_w = int(lip[2] * 1.8* r)  #
-    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * r
+    overall_h = int(lip[3] * 2.3* 6)  # 7.5*0.8
+    overall_w = int(lip[2] * 1.8* 6)  #
+    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 6
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     count = 0
     # cv2.namedWindow("window", cv2.WINDOW_NORMAL)  
     for entry in record:
         lip = entry[1]
-        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * r
+        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * 6
         if np.linalg.norm(new_center - center) < overall_h/2:
             center = new_center
         frame = entry[0]
@@ -161,40 +161,37 @@ def recognize(record):
     print(f"inferenece time:{t3-t2}s")
 
     sorted_commands = sorted(list(zip(outputs[0], COMMANDS)))
-    print(sorted_commands)
-    # send_str = " ".join([s for _, s in sorted_commands])
-    # for s in sorted_commands:
-    #     print(s)
-    # if DRAGGING:
-    #     mixer.music.load(f'C:/Users/rkmtl/Documents/zxsu/sy_speech/drop.mp3')
-    #     mixer.music.play()
-    #     pyautogui.mouseUp()
-    #     DRAGGING = False
-    # else:
-    #     send_msg(CONNECTION,send_str.encode('utf-8')) 
-    #     response = []
-    #     data = get_data(CONNECTION.recv(8096))
-    #     while data != "over":
-    #         response.append(data)
-    #         data = get_data(CONNECTION.recv(8096))
-    #     if response:
-    #         mixer.music.load(f'C:/Users/rkmtl/Documents/zxsu/sy_speech/{response[0]}.mp3')
-    #         mixer.music.play()
+    send_str = " ".join([s for _, s in sorted_commands])
+    for s in sorted_commands:
+        print(s)
+    if DRAGGING:
+        pyautogui.mouseUp()
+        DRAGGING = False
+    else:
+        send_msg(CONNECTION,send_str.encode('utf-8')) 
+        response = []
+        data = get_data(CONNECTION.recv(8096))
+        while data != "over":
+            response.append(data)
+            data = get_data(CONNECTION.recv(8096))
+        if response:
+            mixer.music.load(f'C:/Users/rkmtl/Documents/zxsu/sy_speech/{response[0]}.mp3')
+            mixer.music.play()
 
-    #         if response[0] == "drag":
-    #             print(pyautogui.mouseDown())
-    #             DRAGGING = True
-    #         elif response[0] == "paste_here":
-    #             pyautogui.hotkey("ctrl","v")
-    #         elif response[0] == "copy_this":
-    #             content = response[1]
-    #             if content.startswith("https://"):
-    #                 copy_image(content)
-    #             else:
-    #                 pyperclip.copy(content)
-    #         print(response)
-    # t4 = time.time()
-    # print(f"nerwork communication & command execution time:{t4-t3}s")
+            if response[0] == "drag":
+                print(pyautogui.mouseDown())
+                DRAGGING = True
+            elif response[0] == "paste_here":
+                pyautogui.hotkey("ctrl","v")
+            elif response[0] == "copy_this":
+                content = response[1]
+                if content.startswith("https://"):
+                    copy_image(content)
+                else:
+                    pyperclip.copy(content)
+            print(response)
+    t4 = time.time()
+    print(f"nerwork communication & command execution time:{t4-t3}s")
 
 def connect_web_socket(port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -255,22 +252,20 @@ if __name__ == "__main__":
 
     print("camera preparing")
     capture = cv2.VideoCapture(0)
-    capture.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-    capture.set(cv2.CAP_PROP_FPS, 60)
-    capture.read()
+    capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
     cap = VideoCapture(capture)
     print("camera ready")
 
     mixer.init()
-    buffer = queue.Queue(maxsize=15)
+    buffer = queue.Queue(maxsize=10)
     mouth_open = False
     record = []
     t1 = 0
-    DRAGGING= False
+    DRAGGING = False
     while True:
         frame = cap.read()
-        image = cv2.resize(frame, (160, 120))
+        image = cv2.resize(frame, (320, 180))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
 
@@ -287,15 +282,15 @@ if __name__ == "__main__":
                     print("capturing speech")
                     mouth_open = True
                     record = list(buffer.queue)
-                    buffer = queue.Queue(maxsize=15)
+                    buffer = queue.Queue(maxsize=10)
                     send_msg(CONNECTION,"mo".encode('utf-8')) 
             else:
                 record.append([frame, lip])
                 t1 = t1+1 if mo_angle < 0.1 else 0
             
-            if t1 > 30 or len(record) == 180:
+            if t1 > 10 or len(record) == 90:
                 print("speech finished")
-                if len(record) > 50:
+                if len(record) > 30:
                     cap.recording = False
                     cap.q = queue.Queue(maxsize=100)
                     recognize(record)

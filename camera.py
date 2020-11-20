@@ -8,7 +8,7 @@ class VideoCapture:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_EXPOSURE,-6)
-        print(self.cap.set(cv2.CAP_PROP_FPS, 10))
+        print(self.cap.set(cv2.CAP_PROP_FPS,60))
         self.recording = True
         self.q = queue.Queue(maxsize=100)
         t = threading.Thread(target=self._reader)
