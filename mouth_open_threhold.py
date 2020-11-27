@@ -11,10 +11,13 @@ PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 camera_id = 0
 delay = 1
 window_name = 'frame'
-
+exp = -6
+brightness = 10
 cap = cv2.VideoCapture(camera_id)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+cap.set(cv2.CAP_PROP_BRIGHTNESS,brightness)
 cap.set(cv2.CAP_PROP_FPS, 60)
 def flipv(imgg):
     img2= np.zeros([480, 640, 3], np.uint8)
@@ -62,7 +65,20 @@ while cap.isOpened():
     cv2.imshow(window_name, frame)
     count += 1
 
-    if cv2.waitKey(delay) & 0xFF == ord('q'):
+    key = cv2.waitKey(delay) & 0xFF
+    if  key == ord('q'):
         break
+    elif key == ord('a'):
+        exp+=1
+        cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    elif key == ord('s'):
+        brightness+=1
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+    elif key == ord('z'):
+        exp-=1
+        cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    elif key == ord('x'):
+        brightness-=1
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
 
 cv2.destroyWindow(window_name)

@@ -8,7 +8,7 @@ demo_dataset
 *.tar.gz
 *.pt
 *.onnx
-
+user_study
 *.avi
-__pycache__/network.cpython-37.pyc
+__pycache__
 *pt_puremodel

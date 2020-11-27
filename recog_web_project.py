@@ -218,25 +218,44 @@ def connect_web_socket(port):
     return CONNECTION
 
 if __name__ == "__main__":
-    COMMANDS = ['close_window',
-            'copy_this',
-            'drag',
-            'drop',
-            'enlarge_picture',
-            'fast_forward',
-            'fast_rewind',
-            'paste_here',
-            'pause_video',
-            'play_video',
-            'scroll_down',
-            'scroll_to_bottom',
-            'scroll_up',
-            'select',
-            'speed_down',
-            'speed_up',
-            'translate',
-            'wikipedia']
-
+    # COMMANDS = ['close_window',
+    #         'copy_this',
+    #         'drag',
+    #         'drop',
+    #         'enlarge_picture',
+    #         'fast_forward',
+    #         'fast_rewind',
+    #         'paste_here',
+    #         'pause_video',
+    #         'play_video',
+    #         'scroll_down',
+    #         'scroll_to_bottom',
+    #         'scroll_up',
+    #         'select',
+    #         'speed_down',
+    #         'speed_up',
+    #         'translate',
+    #         'wikipedia']
+    COMMANDS =sorted([
+                    "copy",
+                    "drag",
+                    "drop",
+                    "enlarge",
+                    "close",
+                    "open",
+                    "forward",
+                    "rewind",
+                    "paste",
+                    "pause",
+                    "play",
+                    "down",
+                    "up",
+                    "select",
+                    "fast",
+                    "slow",
+                    "translate",
+                    "wikipedia",
+                    "google"])
     print("waiting for ws client...")
     CONNECTION = connect_web_socket(10130)
     print("reading face recognition model")
@@ -244,9 +263,9 @@ if __name__ == "__main__":
     PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
     print("recognition model ready")
     print("reading lip model")
-    LIP_MODEL = R2Plus1DClassifier(num_classes=18, layer_sizes=[3,3,2,2,2])
+    LIP_MODEL = R2Plus1DClassifier(num_classes=19, layer_sizes=[2,2,2,2,2,2])
     state_dicts = torch.load(
-        "demo40_web_model.pt_puremodel", map_location=torch.device("cuda:0"))
+        "zxsu60fps19_2_6_aug.pt_puremodel", map_location=torch.device("cuda:0"))
     LIP_MODEL.load_state_dict(state_dicts)
     LIP_MODEL.cuda()
     LIP_MODEL.eval()
@@ -258,6 +277,7 @@ if __name__ == "__main__":
     capture.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
     capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
     capture.set(cv2.CAP_PROP_FPS, 60)
+    capture.set(cv2.CAP_PROP_EXPOSURE, -6)
     capture.read()
     cap = VideoCapture(capture)
     print("camera ready")
@@ -283,7 +303,7 @@ if __name__ == "__main__":
                 if buffer.full():
                     buffer.get_nowait()  
                 buffer.put_nowait([frame, lip])
-                if mo_angle > 0.1:
+                if mo_angle > 0.15:
                     print("capturing speech")
                     mouth_open = True
                     record = list(buffer.queue)
@@ -293,7 +313,7 @@ if __name__ == "__main__":
                 record.append([frame, lip])
                 t1 = t1+1 if mo_angle < 0.1 else 0
             
-            if t1 > 30 or len(record) == 180:
+            if t1 > 25 or len(record) == 180:
                 print("speech finished")
                 if len(record) > 50:
                     cap.recording = False

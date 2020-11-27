@@ -26,30 +26,26 @@ class VideoCapture:
 
     def _reader(self):
         while True:
+            _, frame = self.cap.read()
             if self.recording:
-                ret, frame = self.cap.read()
-                if not ret:
-                    break
                 self.q.put_nowait(frame)
-            else:
-                time.sleep(0.1)
 
     def read(self):
         return self.q.get()
 
 
 def recognize(record, j, c):
-    size = (120,72)
+    size = (200, 100)
     r = 5
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * r *1.25)  # *5
-    overall_w = int(lip[2] * 1.8 * r *1.25)  # *5
-    print(overall_h)
+    overall_h = int(lip[3] * 2.3 * r * 1.25)  # *5
+    overall_w = int(lip[2] * 1.8 * r * 1.25)  # *5
+
     center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * r
 
-    buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
+    buffer = np.empty((len(record), size[1], size[0], 3), np.dtype("float32"))
     i = 0
-    fourcc = cv2.VideoWriter_fourcc(*'I420')
+    fourcc = cv2.VideoWriter_fourcc(*"I420")
     fps = 30
     save_name = f"{path}/{c}/{c}{str(k)}.avi"
     video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
@@ -72,72 +68,53 @@ def recognize(record, j, c):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--subject', type=str,
-                        help='subject name and folder name')
-    parser.add_argument('--num', type=int, help='start num')
+    parser = argparse.ArgumentParser(description="Process some integers.")
+    parser.add_argument("--subject", type=str,
+                        help="subject name and folder name")
+    parser.add_argument("--num", type=int, help="start num")
 
     args = parser.parse_args()
     if not args.subject:
         print("input parameters!")
         sys.exit()
 
-    # commands = ['bigger',  # 0
-    #             'bubble',  # 1
-    #             'drag',  # 2
-    #             'drop',  # 3
-    #             'last',  # 4
-    #             'next',  # 5
-    #             'play',  # 6
-    #             'smaller',  # 7
-    #             'stop',  # 8
-    #             'blue',  # 9
-    #             'red']  # 10
-    # origin_commands = ['close_window',
-    #                    'copy_this',
-    #                    'drag',
-    #                    'drop',
-    #                    'enlarge_picture',
-    #                    'fast_forward',
-    #                    'fast_rewind',
-    #                    'paste_here',
-    #                    'pause_video',
-    #                    'play_video',
-    #                    'scroll_down',
-    #                    'scroll_to_bottom',
-    #                    'scroll_up',
-    #                    'select',
-    #                    'speed_down',
-    #                    'speed_up',
-    #                    'translate',
-    #                    'wikipedia']
-    # origin_commands = [#'close_window',
-    #                 'copy',
-    #                 'drag',
-    #                 'drop',
-    #                 'enlarge',
-    #                 'close',
-    #                 'open',
-    #                 'forward',
-    #                 'rewind',
-    #                 'paste',
-    #                 'pause',
-    #                 'play',
-    #                 'down',
-    #                 'up',
-    #                 'select',
-    #                 'fast',
-    #                 'slow',
-    #                 'translate',
-    #                 'wikipedia',
-    #                 "google"]
-
+    origin_commands=[
+        'caption',
+        'play',
+        'stop',
+        'go_back',
+        'go_forward',
+        'previous',
+        'next',
+        'turn_it_up',
+        'turn_it_down',
+        'full_screen',
+        'expand',
+        'delete',
+        'save',
+        'like',
+        'dislike',
+        'share',
+        'add_to_queue',
+        'watch_later',
+        'home',
+        'trending',
+        'subscriptions',
+        'originals',
+        'library',
+        'voice_search',
+        'profile',
+        'notifications',
+        'scroll_up',
+        'scroll_down',
+        'click']
     commands = random.sample(origin_commands, len(origin_commands))
     # restores the model and optimizer state_dicts
     capture = cv2.VideoCapture(0)
     capture.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
     capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
     capture.set(cv2.CAP_PROP_FPS, 60)
+    capture.set(cv2.CAP_PROP_EXPOSURE, -6)
     capture.read()
     cap = VideoCapture(capture)
 
@@ -157,15 +134,14 @@ if __name__ == "__main__":
     k = args.num
     cleared = False
     while True:
-
         frame = cap.read()
         image = cv2.cvtColor(cv2.resize(
             frame, (160, 120)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
             if not cleared:
-                os.system('cls')
+                os.system("cls")
                 print(
-                    f"_______________{colored(c,'cyan',attrs=['bold'])}_____________________\n\n\n")
+                    f"\n\n\n\n\n\n                        {colored(c,'cyan',attrs=['bold'])}              \n\n\n")
                 cleared = True
             buffer.get_nowait()
 
@@ -178,7 +154,7 @@ if __name__ == "__main__":
                 np_shape[62] - np_shape[66]) / np.linalg.norm(np_shape[60] - np_shape[64])
             if not mouth_open:
                 buffer.put_nowait([frame, lip])
-                if cleared and mo_angle > 0.1:
+                if cleared and mo_angle > 0.15:
                     print("capturing speech")
                     mouth_open = True
                     record = list(buffer.queue)
@@ -187,13 +163,14 @@ if __name__ == "__main__":
                 record.append([frame, lip])
                 t1 = t1+1 if mo_angle < 0.1 else 0
             if t1 > 25 or len(record) == 180:
+                print(f"collected {len(record)} frames")
                 cap.recording = False
                 if len(record) <= 50:
                     print(f"{colored(' Too short, say the command again ','red')}")
                 else:
                     print(
                         "Record captured! Press Space ␣ to save it, or any other key to discard")
-                    if msvcrt.getch() == b' ':
+                    if msvcrt.getch() == b" ":
                         recognize(record, k, c)
                         j += 1
                         if j == len(origin_commands):
@@ -208,7 +185,7 @@ if __name__ == "__main__":
                             print(
                                 f"\n\nCollected {k} groups. Press Enter key to continue")
                             while True:
-                                if msvcrt.getch() == b'\r':
+                                if msvcrt.getch() == b"\r":
                                     break
                         c = commands.pop(0)
                         if not os.path.exists(f"{path}/{c}"):
