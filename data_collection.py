@@ -12,34 +12,32 @@ import random
 import msvcrt
 from termcolor import colored
 import sys
+from multiprocessing import Process, Queue, Value
 
 
-class VideoCapture:
+def get(q, recording):
+    camera_id = 0
 
-    def __init__(self, capture):
-        self.cap = capture
-        self.recording = True
-        self.q = queue.Queue(maxsize=100)
-        t = threading.Thread(target=self._reader)
-        t.daemon = True
-        t.start()
-
-    def _reader(self):
-        while True:
-            _, frame = self.cap.read()
-            if self.recording:
-                self.q.put_nowait(frame)
-
-    def read(self):
-        return self.q.get()
+    exp = -6
+    brightness = 10
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+    cap.set(cv2.CAP_PROP_FPS, 60)
+    while True:
+        _, frame = cap.read()
+        if recording:
+            q.put(frame)
 
 
 def recognize(record, j, c):
     size = (200, 100)
     r = 5
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * r * 1.25)  # *5
-    overall_w = int(lip[2] * 1.8 * r * 1.25)  # *5
+    overall_h = lip[3] * 2.3 * 1.25 * r  # *5
+    overall_w = lip[2] * 1.8 * 1.25 * r  # *5
 
     center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * r
 
@@ -55,14 +53,14 @@ def recognize(record, j, c):
         if np.linalg.norm(new_center - center) < overall_h/2:
             center = new_center
         frame = entry[0]
-        frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
-                                 center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+        frame = cv2.resize(frame[int(center[1] - overall_h/2):int(center[1] + overall_h / 2),
+                                 int(center[0] - overall_w / 2):int(center[0] + overall_w / 2)], size)
         buffer[i] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         video_writer.write(frame)
         i += 1
 
     video_writer.release()
-    print(f"collectd {c} {k}")
+    print(f"collected {c} {k}")
 
 
 if __name__ == "__main__":
@@ -78,7 +76,7 @@ if __name__ == "__main__":
         print("input parameters!")
         sys.exit()
 
-    origin_commands=[
+    origin_commands = [
         'caption',
         'play',
         'stop',
@@ -110,13 +108,11 @@ if __name__ == "__main__":
         'click']
     commands = random.sample(origin_commands, len(origin_commands))
     # restores the model and optimizer state_dicts
-    capture = cv2.VideoCapture(0)
-    capture.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-    capture.set(cv2.CAP_PROP_FPS, 60)
-    capture.set(cv2.CAP_PROP_EXPOSURE, -6)
-    capture.read()
-    cap = VideoCapture(capture)
+
+    mp_queue = Queue(maxsize=100)
+    recording = Value('i', 1)
+    p1 = Process(target=get, args=(mp_queue, recording,))
+    p1.start()
 
     path = "./user_study/"+args.subject
     DETECTOR = dlib.get_frontal_face_detector()
@@ -134,7 +130,7 @@ if __name__ == "__main__":
     k = args.num
     cleared = False
     while True:
-        frame = cap.read()
+        frame = mp_queue.get()
         image = cv2.cvtColor(cv2.resize(
             frame, (160, 120)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
@@ -164,7 +160,7 @@ if __name__ == "__main__":
                 t1 = t1+1 if mo_angle < 0.1 else 0
             if t1 > 25 or len(record) == 180:
                 print(f"collected {len(record)} frames")
-                cap.recording = False
+                recording = 0
                 if len(record) <= 50:
                     print(f"{colored(' Too short, say the command again ','red')}")
                 else:
@@ -195,7 +191,9 @@ if __name__ == "__main__":
 
                 record = []
                 cleared = False
-                cap.q = queue.Queue(maxsize=100)
-                cap.recording = True
+                qsize = mp_queue.qsize()
+                for _ in range(qsize):
+                    mp_queue.get()
+                recording = 1
                 mouth_open = False
                 t1 = 0
