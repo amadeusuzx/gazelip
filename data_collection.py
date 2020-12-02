@@ -12,10 +12,10 @@ import random
 import msvcrt
 from termcolor import colored
 import sys
-from multiprocessing import Process, Queue, Value
+from multiprocessing import Process, Queue, Value, Array
 
 
-def get(q, recording):
+def get(q, recording, lip_rect):
     camera_id = 0
 
     exp = -6
@@ -28,19 +28,28 @@ def get(q, recording):
     cap.set(cv2.CAP_PROP_FPS, 60)
     while True:
         _, frame = cap.read()
-        if recording:
+        if recording.value:
             q.put(frame)
+            if recording.value == 2:
+                cv2.rectangle(frame, (lip_rect[0], lip_rect[1]), (
+                    lip_rect[0]+lip_rect[2], lip_rect[1]+lip_rect[3]), (0, 0, 255), 2)
+        cv2.imshow("a", frame)
+        cv2.waitKey(1)
+
+
+def calculate_rect(lip):
+    r = 5
+    x = int(lip[0] - lip[2] *0.625)*r
+    y = int(lip[1] - lip[3])*r
+    width = int(lip[2] * 1.8 * 1.25 * r)  # *5
+    height = int(lip[3] * 2.4 * 1.25 * r)  # *5
+    return (x, y), width, height
 
 
 def recognize(record, j, c):
     size = (200, 100)
-    r = 5
     lip = record[0][1]
-    overall_h = lip[3] * 2.3 * 1.25 * r  # *5
-    overall_w = lip[2] * 1.8 * 1.25 * r  # *5
-
-    center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * r
-
+    corner, overall_w, overall_h = calculate_rect(lip)
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype("float32"))
     i = 0
     fourcc = cv2.VideoWriter_fourcc(*"I420")
@@ -49,12 +58,12 @@ def recognize(record, j, c):
     video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
     for entry in record:
         lip = entry[1]
-        new_center = np.array((lip[0] + lip[2]//2, lip[1] + lip[3]//2)) * r
-        if np.linalg.norm(new_center - center) < overall_h/2:
-            center = new_center
+        _, _, new_corner = calculate_rect(lip)
+        if np.linalg.norm(new_corner - corner) < overall_h/2:
+            corner = new_corner
         frame = entry[0]
-        frame = cv2.resize(frame[int(center[1] - overall_h/2):int(center[1] + overall_h / 2),
-                                 int(center[0] - overall_w / 2):int(center[0] + overall_w / 2)], size)
+        frame = cv2.resize(frame[corner[1]:corner[1] + overall_h,
+                                 corner[0]:corner[0] + overall_w], size)
         buffer[i] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         video_writer.write(frame)
         i += 1
@@ -84,9 +93,9 @@ if __name__ == "__main__":
         'go_forward',
         'previous',
         'next',
-        'turn_it_up',
-        'turn_it_down',
-        'full_screen',
+        'volume_up',
+        'volume_down',
+        'maximize',
         'expand',
         'delete',
         'save',
@@ -100,18 +109,19 @@ if __name__ == "__main__":
         'subscriptions',
         'originals',
         'library',
-        'voice_search',
         'profile',
         'notifications',
         'scroll_up',
         'scroll_down',
-        'click']
+        'click',
+        'clear']
     commands = random.sample(origin_commands, len(origin_commands))
     # restores the model and optimizer state_dicts
 
-    mp_queue = Queue(maxsize=100)
+    mp_queue = Queue()
     recording = Value('i', 1)
-    p1 = Process(target=get, args=(mp_queue, recording,))
+    lip_rect = Array('i', [0, 0, 0, 0])
+    p1 = Process(target=get, args=(mp_queue, recording, lip_rect))
     p1.start()
 
     path = "./user_study/"+args.subject
@@ -137,7 +147,7 @@ if __name__ == "__main__":
             if not cleared:
                 os.system("cls")
                 print(
-                    f"\n\n\n\n\n\n                        {colored(c,'cyan',attrs=['bold'])}              \n\n\n")
+                    f"\n\n\n\n\n\n                                   {colored(c,'cyan',attrs=['bold'])}              \n\n\n")
                 cleared = True
             buffer.get_nowait()
 
@@ -146,6 +156,8 @@ if __name__ == "__main__":
             shape = PREDICTOR(image, rects[0])
             np_shape = face_utils.shape_to_np(shape)
             lip = cv2.boundingRect(np_shape[48:68])
+            (lip_rect[0], lip_rect[1]
+             ), lip_rect[2], lip_rect[3] = calculate_rect(lip)
             mo_angle = np.linalg.norm(
                 np_shape[62] - np_shape[66]) / np.linalg.norm(np_shape[60] - np_shape[64])
             if not mouth_open:
@@ -153,6 +165,7 @@ if __name__ == "__main__":
                 if cleared and mo_angle > 0.15:
                     print("capturing speech")
                     mouth_open = True
+                    recording.value = 2
                     record = list(buffer.queue)
                     buffer = queue.Queue(maxsize=15)
             else:
@@ -160,7 +173,7 @@ if __name__ == "__main__":
                 t1 = t1+1 if mo_angle < 0.1 else 0
             if t1 > 25 or len(record) == 180:
                 print(f"collected {len(record)} frames")
-                recording = 0
+                recording.value = 0
                 if len(record) <= 50:
                     print(f"{colored(' Too short, say the command again ','red')}")
                 else:
@@ -194,6 +207,6 @@ if __name__ == "__main__":
                 qsize = mp_queue.qsize()
                 for _ in range(qsize):
                     mp_queue.get()
-                recording = 1
+                recording.value = 1
                 mouth_open = False
                 t1 = 0
