@@ -12,3 +12,5 @@ user_study
 *.avi
 __pycache__
 *pt_puremodel
+.idea
+**/__pycache__

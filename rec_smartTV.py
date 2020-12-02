@@ -1,0 +1,161 @@
+import os
+import time
+import queue
+
+import numpy as np
+import cv2
+import dlib
+
+from imutils import face_utils
+from network import R2Plus1DClassifier
+import torch
+from multiprocessing import Process, Queue, Value
+from WebsocketData import connect_web_socket, send_msg
+import pyautogui
+
+
+def get(q, recording):
+    exp = -6
+    brightness = 10
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+    cap.set(cv2.CAP_PROP_FPS, 60)
+    while True:
+        _, frame = cap.read()
+        if recording.value:
+            q.put(frame)
+
+def recognize(record):
+    global CONNECTION
+    global DETECTOR
+    global PREDICTOR
+    global LIP_MODEL
+    global COMMANDS
+    r = 5
+    t1 = time.time()
+    size = (96, 48)  # 200*0.6*0.75
+    lip = record[0][1]
+    overall_h = int(lip[3] * 2.3 * r)  # 7.5*0.8
+    overall_w = int(lip[2] * 1.8 * r)  #
+    center = np.array((lip[0] + lip[2] // 2, lip[1] + lip[3] // 2)) * r
+    buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
+    count = 0
+    for entry in record:
+        lip = entry[1]
+        center = np.array((lip[0] + lip[2] // 2, lip[1] + lip[3] // 2)) * r
+        frame = entry[0]
+        frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
+                           center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+
+        buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        count += 1
+
+    t2 = time.time()
+    print(f"frame processing time:{t2 - t1}s")
+    buffer = ((buffer - np.mean(buffer)) /
+              np.std(buffer)).transpose(3, 0, 1, 2)
+    buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
+
+    outputs = LIP_MODEL(buffer).cpu().detach().numpy()
+    t3 = time.time()
+    print(f"inference time:{t3 - t2}s")
+
+    sorted_commands = sorted(list(zip(outputs[0], COMMANDS)))
+    print(sorted_commands)
+    t4 = time.time()
+    print(f"nerwork communication & command execution time:{t4 - t3}s")
+
+
+if __name__ == "__main__":
+
+    COMMANDS =sorted([
+                    "copy",
+                    "drag",
+                    "drop",
+                    "enlarge",
+                    "close",
+                    "open",
+                    "forward",
+                    "rewind",
+                    "paste",
+                    "pause",
+                    "play",
+                    "down",
+                    "up",
+                    "select",
+                    "fast",
+                    "slow",
+                    "translate",
+                    "wikipedia",
+                    "google"])
+
+    print("waiting for ws client...")
+    # CONNECTION = connect_web_socket(10130)
+    print("reading face recognition model")
+    DETECTOR = dlib.get_frontal_face_detector()
+    PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+    print("recognition model ready")
+    print("reading lip model")
+    LIP_MODEL = R2Plus1DClassifier(num_classes=19, layer_sizes=[2, 2, 2, 2, 2, 2])
+    state_dicts = torch.load(
+        "zxsu60fps19_2_6_aug.pt_puremodel", map_location=torch.device("cuda:0"))
+    LIP_MODEL.load_state_dict(state_dicts)
+    LIP_MODEL.cuda()
+    LIP_MODEL.eval()
+    LIP_MODEL(torch.zeros(1, 3, 50, 48, 96, device="cuda:0"))
+    print("lip model ready")
+
+    print("camera preparing")
+    mp_queue = Queue(maxsize=100)
+    recording = Value('i', 1)
+    camera_process = Process(target=get, args=(mp_queue, recording))
+    camera_process.start()
+    mp_queue.get()
+    print("camera ready")
+
+    buffer = queue.Queue(maxsize=15)
+    mouth_open = False
+    record = []
+    t1 = 0
+
+    while True:
+        frame = mp_queue.get()
+        image = cv2.resize(frame, (160, 120))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        rects = DETECTOR(image, 1)
+
+        if rects:
+            shape = PREDICTOR(image, rects[0])
+            np_shape = face_utils.shape_to_np(shape)
+            lip = cv2.boundingRect(np_shape[48:68])
+            mo_angle = np.linalg.norm(np_shape[62] - np_shape[66]) / np.linalg.norm(np_shape[60] - np_shape[64])
+            if not mouth_open:
+                if buffer.full():
+                    buffer.get_nowait()
+                buffer.put_nowait([frame, lip])
+                if mo_angle > 0.15:
+                    print("capturing speech")
+                    mouth_open = True
+                    record = list(buffer.queue)
+                    buffer = queue.Queue(maxsize=15)
+                    # send_msg(CONNECTION, "mo".encode('utf-8'))
+            else:
+                record.append([frame, lip])
+                t1 = t1 + 1 if mo_angle < 0.1 else 0
+
+            if t1 > 25 or len(record) == 180:
+                print("speech finished")
+                if len(record) > 50:
+                    recording.value = 0
+                    recognize(record)
+                # send_msg(CONNECTION, "mc".encode('utf-8'))
+                qsize = mp_queue.qsize()
+                for _ in range(qsize):
+                    mp_queue.get()
+                recording.value = 1
+                record = []
+                t1 = 0
+                mouth_open = False
