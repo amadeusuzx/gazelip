@@ -28,9 +28,9 @@ def get(q, recording, lip_rect):
     cap.set(cv2.CAP_PROP_FPS, 60)
     while True:
         _, frame = cap.read()
+        frame_copy = cv2.resize(frame, (400, 300))
         if recording.value:
             q.put(frame)
-            frame_copy = cv2.resize(frame,(400,300))
             if recording.value == 2:
                 cv2.rectangle(frame_copy, (lip_rect[0], lip_rect[1]), (lip_rect[2], lip_rect[3]), (0, 0, 255), 2)
         cv2.imshow("window", frame_copy)
@@ -39,8 +39,8 @@ def get(q, recording, lip_rect):
 
 def calculate_rect(lip):
     r = 2.5
-    x1 = int((lip[0] - lip[2] * 0.625 )* r)
-    y1 = int((lip[1] - lip[3] * 0.9375 )* r)
+    x1 = int((lip[0] - lip[2] * 0.625) * r)
+    y1 = int((lip[1] - lip[3] * 0.9375) * r)
     x2 = x1 + int(lip[2] * 1.8 * 1.25 * r)  # *5
     y2 = y1 + int(lip[3] * 2.3 * 1.25 * r)  # *5
     return x1, y1, x2, y2
@@ -50,9 +50,8 @@ def recognize(record, j, c):
     r = 5
     size = (200, 100)
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * r)  # 7.5*0.8
-    overall_w = int(lip[2] * 1.8 * r)  #
-    center = np.array((lip[0] + lip[2] // 2, lip[1] + lip[3] // 2)) * r
+    overall_h = int(lip[3] * 2.3 * 1.25 * r)  # 7.5*0.8
+    overall_w = int(lip[2] * 1.8 * 1.25 * r)  #
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype("float32"))
     i = 0
     fourcc = cv2.VideoWriter_fourcc(*"I420")

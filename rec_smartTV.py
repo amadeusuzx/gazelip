@@ -10,7 +10,7 @@ from imutils import face_utils
 from network import R2Plus1DClassifier
 import torch
 from multiprocessing import Process, Queue, Value
-from WebsocketData import connect_web_socket, send_msg
+from WebsocketData import connect_web_socket, send_msg, get_data
 import pyautogui
 
 
@@ -28,6 +28,7 @@ def get(q, recording):
         if recording.value:
             q.put(frame)
 
+
 def recognize(record):
     global CONNECTION
     global DETECTOR
@@ -36,11 +37,10 @@ def recognize(record):
     global COMMANDS
     r = 5
     t1 = time.time()
-    size = (96, 48)  # 200*0.6*0.75
+    size = (92, 46)  # 200*0.6/1.25
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * r)  # 7.5*0.8
-    overall_w = int(lip[2] * 1.8 * r)  #
-    center = np.array((lip[0] + lip[2] // 2, lip[1] + lip[3] // 2)) * r
+    overall_h = int(lip[3] * 2.3 * r /1.25 )  # 7.5*0.8
+    overall_w = int(lip[2] * 1.8 * r /1.25)  #
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     count = 0
     for entry in record:
@@ -49,7 +49,8 @@ def recognize(record):
         frame = entry[0]
         frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
                            center[0] - overall_w // 2:center[0] + overall_w // 2], size)
-
+        # cv2.imshow("window", cv2.resize(frame, (400, 200)))
+        # cv2.waitKey(16)
         buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         count += 1
 
@@ -66,31 +67,41 @@ def recognize(record):
     sorted_commands = sorted(list(zip(outputs[0], COMMANDS)))
     print(sorted_commands)
     t4 = time.time()
+    # context = get_data(CONNECTION.recv(8096))
     print(f"nerwork communication & command execution time:{t4 - t3}s")
 
 
 if __name__ == "__main__":
 
-    COMMANDS =sorted([
-                    "copy",
-                    "drag",
-                    "drop",
-                    "enlarge",
-                    "close",
-                    "open",
-                    "forward",
-                    "rewind",
-                    "paste",
-                    "pause",
-                    "play",
-                    "down",
-                    "up",
-                    "select",
-                    "fast",
-                    "slow",
-                    "translate",
-                    "wikipedia",
-                    "google"])
+    COMMANDS = sorted([
+        'caption',
+        'play',
+        'stop',
+        'go_back',
+        'go_forward',
+        'previous',
+        'next',
+        'volume_up',
+        'volume_down',
+        'maximize',
+        'expand',
+        'delete',
+        'save',
+        'like',
+        'dislike',
+        'share',
+        'add_to_queue',
+        'watch_later',
+        'home',
+        'trending',
+        'subscription',
+        'original',
+        'library',
+        'profile',
+        'notification',
+        'scroll_up',
+        'scroll_down',
+        'click'])
 
     print("waiting for ws client...")
     # CONNECTION = connect_web_socket(10130)
@@ -99,10 +110,10 @@ if __name__ == "__main__":
     PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
     print("recognition model ready")
     print("reading lip model")
-    LIP_MODEL = R2Plus1DClassifier(num_classes=19, layer_sizes=[2, 2, 2, 2, 2, 2])
+    LIP_MODEL = R2Plus1DClassifier(num_classes=28, layer_sizes=[2, 2, 2, 2, 2, 2])
     state_dicts = torch.load(
-        "zxsu60fps19_2_6_aug.pt_puremodel", map_location=torch.device("cuda:0"))
-    LIP_MODEL.load_state_dict(state_dicts)
+        "zxsuSmartTV5layer", map_location=torch.device("cuda:0"))
+    LIP_MODEL.load_state_dict(state_dicts["state_dict"])
     LIP_MODEL.cuda()
     LIP_MODEL.eval()
     LIP_MODEL(torch.zeros(1, 3, 50, 48, 96, device="cuda:0"))

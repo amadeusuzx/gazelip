@@ -3,7 +3,7 @@ dataset_archive
 .vscode
 .ipynb_checkpoints
 __pycache__
-zxsu
+*zxsu*
 demo_dataset
 *.tar.gz
 *.pt
