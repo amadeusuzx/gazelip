@@ -8,10 +8,10 @@ import time
 
 DETECTOR = dlib.get_frontal_face_detector()
 PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Pipe
 
 
-def get(q):
+def get(pipe):
     camera_id = 0
 
     exp = -6
@@ -25,13 +25,14 @@ def get(q):
     while True:
         ret, frame = cap.read()
         if ret:
-            q.put(frame)
+            pipe.send([frame,time.time()])
 
 
 if __name__ == "__main__":
-    q = Queue()
-    p1 = Process(target=get, args=(q,))
-    p1.start()
+    (con1, con2) = Pipe()
+    sender = Process(target = get, name = 'send', args = (con1, ))
+    sender.start()
+
 
     window_name = 'frame'
 
@@ -44,7 +45,8 @@ if __name__ == "__main__":
     angle = 0
     now_angle = 0
     while True:
-        frame = q.get()
+        frame,timestamp = con2.recv()
+        print(time.time()-timestamp)
         image = cv2.cvtColor(cv2.resize(
             frame, (120, 90)), cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
@@ -72,5 +74,9 @@ if __name__ == "__main__":
         count += 1
 
         key = cv2.waitKey(delay) & 0xFF
+        if key == ord('q'):
+            break
 
     cv2.destroyWindow(window_name)
+    sender.terminate()
+    sys.exit()

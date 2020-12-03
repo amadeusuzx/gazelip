@@ -17,11 +17,8 @@ def get_data(info):
     for i in range(len(decoded)):
         chunk = decoded[i] ^ mask[i % 4]
         bytes_list.append(chunk)
-    try:
-        body = str(bytes_list, encoding='utf-8')
-    except:
-        print(f"bytes_list is : {bytes_list}")
-        return "invalid"
+    body = str(bytes_list, encoding='utf-8')
+    print(body)
     return body
 
 
