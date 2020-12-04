@@ -9,12 +9,13 @@ import dlib
 from imutils import face_utils
 from network import R2Plus1DClassifier
 import torch
-from multiprocessing import Process, Queue, Value
+from multiprocessing import Process, Pipe, RawArray, Value
 from WebsocketData import connect_web_socket, send_msg, get_data
 import pyautogui
+import ctypes
 
 
-def get(q, recording):
+def get(raw_array, flag):
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -23,10 +24,12 @@ def get(q, recording):
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     while True:
         _, frame = cap.read()
-        if recording.value:
-            q.put(frame)
+        if flag.value > -1:
+            np.copyto(X_1[flag.value % 100], frame)
+            flag.value += 1
 
 
 def recognize(record):
@@ -78,7 +81,7 @@ def recognize(record):
         temp_list = FUNC_DICTS[CONTEXT] + FUNC_DICTS["General"]
         temp_output = [(x, outputs[x]) for x in temp_list]
         command = max(temp_output, key=lambda x: x[1])[0]
-        print("------"+command+"------")
+        print("------" + command + "------")
         if command == "click":
             pyautogui.click()
         elif command == "maximize":
@@ -93,13 +96,14 @@ def recognize(record):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("--test", type=bool,
                         help="whether communicate using websocket")
     args = parser.parse_args()
     TEST = args.test
 
-    FUNC_DICTS = {"General": ["scroll_up", "scroll_down", "go_back", "go_forward","click"],
+    FUNC_DICTS = {"General": ["scroll_up", "scroll_down", "go_back", "go_forward", "click"],
                   "SideMenu": ["home", "trending", "subscription", "original", "library"],
                   "NavigationBar": ["profile", "notification", "home"],
                   "Thumbnail": ["play", "watch_later", "add_to_queue"],
@@ -108,7 +112,7 @@ if __name__ == "__main__":
                   "Queue": ["delete", "play"],
                   "LikeMenu": ["like", "dislike", "share", "save"],
                   "MainPlayer": ["caption", "play", "stop", "go_back", "go_forward", "previous", "next",
-                                 "volume_up", "volume_down","maximize"]}
+                                 "volume_up", "volume_down", "maximize"]}
 
     # channelListFuncDict = ["music","gaming","news","movies"]
     COMMANDS = sorted(
@@ -134,20 +138,24 @@ if __name__ == "__main__":
     print("lip model ready")
 
     print("camera preparing")
-    mp_queue = Queue(maxsize=100)
-    recording = Value('i', 1)
-    camera_process = Process(target=get, args=(mp_queue, recording))
-    camera_process.start()
-    mp_queue.get()
+    flag = Value("i",0)
+    raw_array = RawArray(ctypes.c_uint8, 800 * 600 * 3 * 100)
+    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
+    camera_prosess = Process(target=get, args=(raw_array, flag))
+    camera_prosess.start()
     print("camera ready")
 
     buffer = queue.Queue(maxsize=15)
     mouth_open = False
     record = []
     t1 = 0
-
+    exflag = 0
     while True:
-        frame = mp_queue.get()
+        while True:
+            if exflag < flag.value:
+                break
+        frame = X_2[exflag % 100]
+        exflag += 1
         image = cv2.resize(frame, (160, 120))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
@@ -176,14 +184,12 @@ if __name__ == "__main__":
             if t1 > 25 or len(record) == 180:
                 print("speech finished")
                 if len(record) > 50:
-                    recording.value = 0
+                    flag.value = -1
                     recognize(record)
                 if not TEST:
                     send_msg(CONNECTION, "mc".encode('utf-8'))
-                qsize = mp_queue.qsize()
-                for _ in range(qsize):
-                    mp_queue.get()
-                recording.value = 1
+                flag.value = 0
+                exflag = 0
                 record = []
                 t1 = 0
                 mouth_open = False

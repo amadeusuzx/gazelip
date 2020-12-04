@@ -5,15 +5,14 @@ from PIL import Image
 from imutils import face_utils
 import numpy as np
 import time
+from multiprocessing import RawArray, Value, Process, Array, Pipe
+import ctypes
 
 DETECTOR = dlib.get_frontal_face_detector()
 PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
-from multiprocessing import Process, Queue, Pipe
 
 
-def get(pipe):
-    camera_id = 0
-
+def get(raw_array, flag):
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -22,17 +21,19 @@ def get(pipe):
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     while True:
         ret, frame = cap.read()
-        if ret:
-            pipe.send([frame,time.time()])
+        np.copyto(X_1[flag % 100], frame)
+        pipe.send_bytes(str(time.time()).encode("utf-8"))
+        flag+=1
 
 
 if __name__ == "__main__":
     (con1, con2) = Pipe()
-    sender = Process(target = get, name = 'send', args = (con1, ))
-    sender.start()
-
+    raw_array = RawArray(ctypes.c_uint8, 800 * 600 * 3 * 100)
+    p = Process(target=get, args=(raw_array, con1))
+    p.start()
 
     window_name = 'frame'
 
@@ -40,13 +41,18 @@ if __name__ == "__main__":
     tm.start()
     delay = 1
     count = 0
-    max_count = 10
+    max_count = 20
     fps = 0
     angle = 0
     now_angle = 0
+    exflag = 0
+    temp = 0
+    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     while True:
-        frame,timestamp = con2.recv()
-        print(time.time()-timestamp)
+        time_ = float(con2.recv_bytes(18))
+        temp+=(time.time() - time_)
+        frame = X_2[exflag % 100 ]
+        exflag += 1
         image = cv2.cvtColor(cv2.resize(
             frame, (120, 90)), cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
@@ -59,6 +65,8 @@ if __name__ == "__main__":
             angle = np.linalg.norm(
                 shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
         if count == max_count:
+            print(temp/max_count,end="\r")
+            temp = 0
             tm.stop()
             fps = max_count / tm.getTimeSec()
             tm.reset()
@@ -78,5 +86,4 @@ if __name__ == "__main__":
             break
 
     cv2.destroyWindow(window_name)
-    sender.terminate()
     sys.exit()

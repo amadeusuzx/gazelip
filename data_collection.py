@@ -12,12 +12,11 @@ import random
 import msvcrt
 from termcolor import colored
 import sys
-from multiprocessing import Process, Queue, Value, Array
+from multiprocessing import Process, Value, RawArray, Array
+import ctypes
 
 
-def get(q, recording, lip_rect):
-    camera_id = 0
-
+def get(raw_array, top_flag, stat_flag, lip_rect):
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -26,12 +25,14 @@ def get(q, recording, lip_rect):
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     while True:
         _, frame = cap.read()
         frame_copy = cv2.resize(frame, (400, 300))
-        if recording.value:
-            q.put(frame)
-            if recording.value == 2:
+        if stat_flag.value:
+            np.copyto(X_1[top_flag.value % 100], frame)
+            top_flag.value += 1
+            if stat_flag.value == 2:
                 cv2.rectangle(frame_copy, (lip_rect[0], lip_rect[1]), (lip_rect[2], lip_rect[3]), (0, 0, 255), 2)
         cv2.imshow("window", frame_copy)
         cv2.waitKey(1)
@@ -63,7 +64,7 @@ def recognize(record, j, c):
         center = np.array((lip[0] + lip[2] // 2, lip[1] + lip[3] // 2)) * r
         frame = entry[0]
         frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
-                           center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+                                 center[0] - overall_w // 2:center[0] + overall_w // 2], size)
         buffer[i] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         video_writer.write(frame)
         i += 1
@@ -116,10 +117,12 @@ if __name__ == "__main__":
         'click']
     commands = random.sample(origin_commands, len(origin_commands))
 
-    mp_queue = Queue()
-    recording = Value('i', 1)
+    top_flag = Value("i", 0)
+    stat_flag = Value("i", 1)
     lip_rect = Array('i', [0, 0, 0, 0])
-    camera_process = Process(target=get, args=(mp_queue, recording, lip_rect))
+    raw_array = RawArray(ctypes.c_uint8, 800 * 600 * 3 * 100)
+    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
+    camera_process = Process(target=get, args=(raw_array, top_flag, stat_flag, lip_rect))
     camera_process.start()
 
     path = "./user_study/" + args.subject
@@ -137,8 +140,14 @@ if __name__ == "__main__":
     j = 0
     k = args.num
     cleared = False
+    exflag = 0
+
     while True:
-        frame = mp_queue.get()
+        while True:
+            if exflag < top_flag.value:
+                break
+        frame = X_2[exflag % 100]
+        exflag += 1
         image = cv2.cvtColor(cv2.resize(
             frame, (160, 120)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
@@ -154,15 +163,16 @@ if __name__ == "__main__":
             shape = PREDICTOR(image, rects[0])
             np_shape = face_utils.shape_to_np(shape)
             lip = cv2.boundingRect(np_shape[48:68])
-            lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(lip)
+            lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
+                lip)
             mo_angle = np.linalg.norm(
                 np_shape[62] - np_shape[66]) / np.linalg.norm(np_shape[60] - np_shape[64])
             if not mouth_open:
                 buffer.put_nowait([frame, lip])
-                if cleared and mo_angle > 0.15:
+                if cleared and mo_angle > 0.1:
                     print("capturing speech")
                     mouth_open = True
-                    recording.value = 2
+                    stat_flag.value = 2
                     record = list(buffer.queue)
                     buffer = queue.Queue(maxsize=25)
             else:
@@ -170,7 +180,7 @@ if __name__ == "__main__":
                 t1 = t1 + 1 if mo_angle < 0.1 else 0
             if t1 > 25 or len(record) == 180:
                 print(f"collected {len(record)} frames")
-                recording.value = 0
+                stat_flag.value = 0
                 if len(record) <= 65:
                     print(f"{colored(' Too short, say the command again ', 'red')}")
                 else:
@@ -199,9 +209,8 @@ if __name__ == "__main__":
 
                 record = []
                 cleared = False
-                qsize = mp_queue.qsize()
-                for _ in range(qsize):
-                    mp_queue.get()
-                recording.value = 1
+                stat_flag.value = 1
+                top_flag.value = 0
+                exflag = 0
                 mouth_open = False
                 t1 = 0
