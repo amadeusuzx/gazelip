@@ -1,20 +1,17 @@
 import os
-import time
+import ctypes
+import sys
+from multiprocessing import Process, Value, RawArray, Array
+
+import queue
+import random
+import msvcrt
+from termcolor import colored
 
 import numpy as np
 import cv2
 import dlib
 from imutils import face_utils
-
-import threading
-import queue
-import random
-import msvcrt
-from termcolor import colored
-import sys
-from multiprocessing import Process, Value, RawArray, Array
-import ctypes
-
 
 def get(raw_array, top_flag, stat_flag, lip_rect):
     exp = -6
@@ -116,7 +113,7 @@ if __name__ == "__main__":
         'scroll_down',
         'click']
     commands = random.sample(origin_commands, len(origin_commands))
-
+    
     top_flag = Value("i", 0)
     stat_flag = Value("i", 1)
     lip_rect = Array('i', [0, 0, 0, 0])
@@ -125,7 +122,7 @@ if __name__ == "__main__":
     camera_process = Process(target=get, args=(raw_array, top_flag, stat_flag, lip_rect))
     camera_process.start()
 
-    path = "./user_study/" + args.subject
+    path = "H:/GazeLipDatasets/" + args.subject
     DETECTOR = dlib.get_frontal_face_detector()
     PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 

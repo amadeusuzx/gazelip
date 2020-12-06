@@ -9,7 +9,7 @@ import dlib
 from imutils import face_utils
 from network import R2Plus1DClassifier
 import torch
-from multiprocessing import Process, Pipe, RawArray, Value
+from multiprocessing import Process, RawArray, Value
 from WebsocketData import connect_web_socket, send_msg, get_data
 import pyautogui
 import ctypes
@@ -27,6 +27,7 @@ def get(raw_array, flag):
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     while True:
         _, frame = cap.read()
+        # frame = cv2.resize(frame,(800,600))
         if flag.value > -1:
             np.copyto(X_1[flag.value % 100], frame)
             flag.value += 1
@@ -86,6 +87,8 @@ def recognize(record):
             pyautogui.click()
         elif command == "maximize":
             pyautogui.press("f")
+            send_msg(CONNECTION, command.encode("utf-8"))
+            get_data(CONNECTION.recv(8096))
         else:
             send_msg(CONNECTION, command.encode("utf-8"))
             get_data(CONNECTION.recv(8096))
