@@ -9,7 +9,6 @@ import dlib
 from imutils import face_utils
 from network import R2Plus1DClassifier
 import torch
-from torch import nn
 from multiprocessing import Process, RawArray, Value
 from WebsocketData import connect_web_socket, send_msg, get_data
 import pyautogui
@@ -19,16 +18,16 @@ import ctypes
 def get(raw_array, flag):
     exp = -6
     brightness = 10
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-    cap.set(cv2.CAP_PROP_EXPOSURE, exp)
-    cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
-    cap.set(cv2.CAP_PROP_FPS, 60)
+    cap = cv2.VideoCapture(1)
+    # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+    # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    # cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    # cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+    # cap.set(cv2.CAP_PROP_FPS, 60)
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     while True:
         _, frame = cap.read()
-        # frame = cv2.resize(frame,(800,600))
+        frame = cv2.resize(frame,(800,600))
         if flag.value > -1:
             np.copyto(X_1[flag.value % 100], frame)
             flag.value += 1
@@ -47,10 +46,10 @@ def recognize(record):
 
     t1 = time.time()
     # crop image
-    size = (92,46)  # 200*0.6/1.25
+    size = (60, 30)  # 200*0.6/1.25
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * r /1.25)  # 7.5*0.8
-    overall_w = int(lip[2] * 1.8 * r /1.25)  #
+    overall_h = int(lip[3] * 2.3 * r *0.75)  # 7.5*0.8
+    overall_w = int(lip[2] * 1.8 * r *0.75)  #
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     count = 0
     for entry in record:
@@ -123,6 +122,7 @@ if __name__ == "__main__":
         ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'maximize',
          'expand', 'delete', 'save', 'like', 'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending',
          'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down', 'click'])
+
     print("waiting for ws client...")
     if not TEST:
         CONNECTION = connect_web_socket(10130)
@@ -133,16 +133,10 @@ if __name__ == "__main__":
     print("reading lip model")
     LIP_MODEL = R2Plus1DClassifier(num_classes=28, layer_sizes=(2, 2, 2, 2, 2, 2))
     state_dicts = torch.load(
-        "test", map_location=torch.device("cuda:0"))
+        "zxsu3060para12", map_location=torch.device("cuda:0"))
     LIP_MODEL.load_state_dict(state_dicts["state_dict"])
-    # load classifier
-    # CLASSIFIER = nn.Linear(1024,7)
-    # CLASSIFIER.load_state_dict(torch.load("3060training10_classifier7",map_location=torch.device("cuda:0")))
-    # CLASSIFIER.cuda()
-    # CLASSIFIER.eval()
     LIP_MODEL.cuda()
     LIP_MODEL.eval()
-    
     LIP_MODEL(torch.zeros(1, 3, 50, 48, 96, device="cuda:0"))
     print("lip model ready")
 
@@ -178,7 +172,7 @@ if __name__ == "__main__":
                 if buffer.full():
                     buffer.get_nowait()
                 buffer.put_nowait([frame, lip])
-                if mo_angle > 0.1:
+                if mo_angle > 0.2:
                     print("capturing speech")
                     mouth_open = True
                     record = list(buffer.queue)
@@ -188,11 +182,11 @@ if __name__ == "__main__":
                         CONTEXT = get_data(CONNECTION.recv(8096))
             else:
                 record.append([frame, lip])
-                t1 = t1 + 1 if mo_angle < 0.1 else 0
+                t1 = t1 + 1 if mo_angle < 0.2 else 0
 
-            if t1 > 25 or len(record) == 180:
+            if t1 > 15 or len(record) == 180:
                 print("speech finished")
-                if len(record) > 50:
+                if len(record) > 30:
                     flag.value = -1
                     recognize(record)
                 if not TEST:

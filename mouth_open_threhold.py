@@ -16,17 +16,17 @@ PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 def get(raw_array, pipe):
     exp = -6
     brightness = 10
-    cap = cv2.VideoCapture(1)
-    # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-    # cap.set(cv2.CAP_PROP_EXPOSURE, exp)
-    # cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     flag = 0
     while True:
         ret, frame = cap.read()
-        frame = cv2.resize(frame,(800,600))
+        # frame = cv2.resize(frame,(800,600))
         np.copyto(X_1[flag % 100], frame)
         pipe.send_bytes(str(time.time()).encode("utf-8"))
         flag+=1
