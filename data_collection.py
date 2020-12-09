@@ -12,8 +12,9 @@ import numpy as np
 import cv2
 import dlib
 from imutils import face_utils
+import time 
 
-mo_threshold = 0.13
+mo_threshold = 0.1
 to_threshold = 5
 tc_threshold = 30
 buffer_size = 35
@@ -34,15 +35,26 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i):
     while True:
         frame = cap.read()[1][50:550, 150:650, :]
         frame_copy = cv2.resize(frame, (500, 500))
-        if stat_flag.value:
+        if stat_flag.value > 0:
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
             if stat_flag.value == 2:
                 cv2.rectangle(
                     frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-        frame_copy = cv2.flip(frame_copy, 1)
-        cv2.putText(frame_copy, origin_commands[i.value], (200, 450),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+            frame_copy = cv2.flip(frame_copy, 1)
+            cv2.putText(frame_copy, origin_commands[i.value].replace("_"," "), (150, 450),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (160, 160, 0), 2, cv2.LINE_AA)
+        elif stat_flag.value == 0:
+            frame_copy = cv2.flip(frame_copy, 1)
+            cv2.putText(frame_copy, "press space key to continue", (50, 450),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+            cv2.putText(frame_copy, "press any other key to discard", (50, 470),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+        elif stat_flag.value == -1:
+            frame_copy = cv2.flip(frame_copy, 1)
+            cv2.putText(frame_copy, "speech is to short. try slower agiain", (50, 450),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+        
         cv2.imshow("window", frame_copy)
         cv2.waitKey(1)
 
@@ -51,8 +63,8 @@ def calculate_rect(lip):
     r = 5/1.4
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
-    overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
-    overall_w = int(lip[2] * 1.8 * 1.25 * r / 2)
+    overall_h = int(lip[3] * 2.91 * r / 2) # 2.3*1.25
+    overall_w = int(lip[2] * 2.4 * r / 2) # 1.8 *1.25
     return center_x, center_y, overall_w, overall_h
 
 
@@ -60,8 +72,8 @@ def recognize(record, j, c):
     r = 5/1.4
     size = (120, 60)
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
-    overall_w = int(lip[2] * 1.8 * 1.25 * r / 2)
+    overall_h = int(lip[3] * 2.91 * r / 2)
+    overall_w = int(lip[2] * 2.4 * r / 2)
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype("float32"))
     i = 0
     fourcc = cv2.VideoWriter_fourcc(*"I420")
@@ -202,10 +214,11 @@ if __name__ == "__main__":
                 t_close = t_close + 1 if mo_angle < mo_threshold else 0
             if t_close > tc_threshold or len(record) == 180:
                 print(f"collected {len(record)} frames")
-                stat_flag.value = 0
                 if len(record) <= tc_threshold+buffer_size+5:
-                    print(f"{colored(' Too short, say the command again ', 'red')}")
+                    stat_flag.value = -1
+                    time.sleep(1)
                 else:
+                    stat_flag.value = 0
                     print(
                         "Record captured! Press Space ␣ to save it, or any other key to discard")
                     if msvcrt.getch() == b" ":

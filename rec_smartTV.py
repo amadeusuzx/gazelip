@@ -16,7 +16,7 @@ import pyautogui
 import ctypes
 import csv
 
-mo_threshold = 0.13
+mo_threshold = 0.1
 to_threshold = 5
 tc_threshold = 30
 buffer_size = 35
@@ -33,24 +33,9 @@ def get(raw_array, top_flag, stat_flag, lip_rect):
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     while True:
         frame = cap.read()[1][50:550, 150:650, :]
-        # frame_copy = cv2.resize(frame, (500, 500))
         if stat_flag.value:
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
-        #     if stat_flag.value == 2:
-        #         cv2.rectangle(
-        #             frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-        # cv2.imshow("window", frame_copy)
-        # cv2.waitKey(1)
-
-
-def calculate_rect(lip):
-    r = 5/1.4
-    center_x = int((lip[0] + lip[2] / 2) * r)
-    center_y = int((lip[1] + lip[3] / 2) * r)
-    overall_h = int(lip[3] * 2.3 * r / 2)  # 7.5*0.8
-    overall_w = int(lip[2] * 1.8 * r / 2)  #
-    return center_x, center_y, overall_w, overall_h
 
 
 def recognize(record):
@@ -68,10 +53,10 @@ def recognize(record):
 
     t1 = time.time()
     # crop image
-    size = (60, 30)  # 200*0.6/1.25
+    size = (80, 40)  # 200*0.6/1.25
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * r / 2)  #
-    overall_w = int(lip[2] * 1.8 * r / 2)  #
+    overall_h = int(lip[3] * 1.94 * r / 2)  # r = 2.91/1.5
+    overall_w = int(lip[2] * 1.6 * r / 2)  # 1.6 = 2.4/1.5
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype('float32'))
     count = 0
     for entry in record:
