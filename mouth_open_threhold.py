@@ -22,19 +22,26 @@ def get(raw_array, pipe):
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
-    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     flag = 0
     while True:
-        ret, frame = cap.read()
+        frame = cap.read()[1][50:550,150:650,:]
         # frame = cv2.resize(frame,(800,600))
         np.copyto(X_1[flag % 100], frame)
         pipe.send_bytes(str(time.time()).encode("utf-8"))
         flag+=1
 
+def calculate_rect(lip):
+    r = 5/1.4
+    center_x = int((lip[0] + lip[2] / 2) * r)
+    center_y = int((lip[1] + lip[3] / 2) * r)
+    overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
+    overall_w = int(lip[2] * 1.8 * 1.25 * r / 2)
+    return center_x, center_y, overall_w, overall_h
 
 if __name__ == "__main__":
     (con1, con2) = Pipe()
-    raw_array = RawArray(ctypes.c_uint8, 800 * 600 * 3 * 100)
+    raw_array = RawArray(ctypes.c_uint8, 500 * 500 * 3 * 100)
     p = Process(target=get, args=(raw_array, con1))
     p.start()
 
@@ -44,20 +51,21 @@ if __name__ == "__main__":
     tm.start()
     delay = 1
     count = 0
-    max_count = 20
+    max_count = 10
     fps = 0
     angle = 0
     now_angle = 0
     exflag = 0
     temp = 0
-    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
+    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
+    lip_rect = [0,0,0,0]
     while True:
         time_ = float(con2.recv_bytes(18))
         temp+=(time.time() - time_)
         frame = X_2[exflag % 100 ]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (120, 90)), cv2.COLOR_BGR2GRAY)
+            frame, (140, 140)), cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
         t1 = time.time()
         for (_, rect) in enumerate(rects):
@@ -67,6 +75,10 @@ if __name__ == "__main__":
             lip = cv2.boundingRect(shape[48:68])
             angle = np.linalg.norm(
                 shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
+            if angle > 0.13:
+                lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(lip)
+                cv2.rectangle(
+                        frame, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
         if count == max_count:
             print(temp/max_count,end="\r")
             temp = 0
@@ -76,7 +88,7 @@ if __name__ == "__main__":
             tm.start()
             count = 0
             now_angle = angle
-
+        
         cv2.putText(frame, 'FPS: {:.2f}'.format(fps),
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), thickness=2)
         cv2.putText(frame, 'Angle: {:.3f}'.format(now_angle),

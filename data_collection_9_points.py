@@ -46,12 +46,12 @@ def get(raw_array, top_flag, stat_flag, lip_rect,i):
         'click']
     exp = -6
     brightness = 10
-    cap = cv2.VideoCapture(1)
-    # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-    # cap.set(cv2.CAP_PROP_EXPOSURE, exp)
-    # cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
-    # cap.set(cv2.CAP_PROP_FPS, 60)
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    cap.set(cv2.CAP_PROP_EXPOSURE, exp)
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+    cap.set(cv2.CAP_PROP_FPS, 60)
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
     # background = np.zeros((1440,2560,3),dtype=np.uint8)
     cv2.namedWindow("window")
@@ -74,7 +74,7 @@ def get(raw_array, top_flag, stat_flag, lip_rect,i):
 
 
 def calculate_rect(lip):
-    r = 4
+    r = 5
     center_x = r * lip[0] + r * lip[2] // 2
     center_y = r * lip[1] + r * lip[3] // 2
     overall_h = int(lip[3] * 2.3 * 1.25 * r)  # 7.5*0.8
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     DETECTOR = dlib.get_frontal_face_detector()
     PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
-    buffer = queue.Queue(maxsize=15)
+    buffer = queue.Queue(maxsize=25)
     c = commands.pop(0)
     command_index.value = origin_commands.index(c)
     t1 = 0
@@ -205,22 +205,22 @@ if __name__ == "__main__":
                 np_shape[62] - np_shape[66]) / np.linalg.norm(np_shape[60] - np_shape[64])
             if not mouth_open:
                 buffer.put_nowait([frame, lip])
-                if cleared and mo_angle > 0.2:
+                if cleared and mo_angle > 0.15:
                     lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
                         lip)
                     print("capturing speech")
                     mouth_open = True
                     stat_flag.value = 2
                     record = list(buffer.queue)
-                    buffer = queue.Queue(maxsize=15)
+                    buffer = queue.Queue(maxsize=25)
             else:
                 lip_rect[0], lip_rect[1], _, _ = calculate_rect(lip)
                 record.append([frame, lip])
-                t1 = t1 + 1 if mo_angle < 0.2 else 0
-            if t1 > 15 or len(record) == 180:
+                t1 = t1 + 1 if mo_angle < 0.15 else 0
+            if t1 > 25 or len(record) == 180:
                 print(f"collected {len(record)} frames")
                 stat_flag.value = 0
-                if len(record) <= 40:
+                if len(record) <= 60:
                     print(f"{colored(' Too short, say the command again ', 'red')}")
                 else:
                     print(

@@ -13,7 +13,15 @@ import cv2
 import dlib
 from imutils import face_utils
 
-def get(raw_array, top_flag, stat_flag, lip_rect):
+mo_threshold = 0.13
+to_threshold = 5
+tc_threshold = 30
+buffer_size = 35
+
+
+def get(raw_array, top_flag, stat_flag, lip_rect, i):
+    origin_commands = ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'maximize', 'expand', 'delete', 'save', 'like',
+                       'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending', 'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down', 'click']
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -22,34 +30,38 @@ def get(raw_array, top_flag, stat_flag, lip_rect):
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
-    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     while True:
-        _, frame = cap.read()
-        frame_copy = cv2.resize(frame, (400, 300))
+        frame = cap.read()[1][50:550, 150:650, :]
+        frame_copy = cv2.resize(frame, (500, 500))
         if stat_flag.value:
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
             if stat_flag.value == 2:
-                cv2.rectangle(frame_copy, (lip_rect[0], lip_rect[1]), (lip_rect[2], lip_rect[3]), (0, 0, 255), 2)
+                cv2.rectangle(
+                    frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
+        frame_copy = cv2.flip(frame_copy, 1)
+        cv2.putText(frame_copy, origin_commands[i.value], (200, 450),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
         cv2.imshow("window", frame_copy)
         cv2.waitKey(1)
 
 
 def calculate_rect(lip):
-    r = 2.5
-    x1 = int((lip[0] - lip[2] * 0.625) * r)
-    y1 = int((lip[1] - lip[3] * 0.9375) * r)
-    x2 = x1 + int(lip[2] * 1.8 * 1.25 * r)  # *5
-    y2 = y1 + int(lip[3] * 2.3 * 1.25 * r)  # *5
-    return x1, y1, x2, y2
+    r = 5/1.4
+    center_x = int((lip[0] + lip[2] / 2) * r)
+    center_y = int((lip[1] + lip[3] / 2) * r)
+    overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
+    overall_w = int(lip[2] * 1.8 * 1.25 * r / 2)
+    return center_x, center_y, overall_w, overall_h
 
 
 def recognize(record, j, c):
-    r = 5
-    size = (200, 100)
+    r = 5/1.4
+    size = (120, 60)
     lip = record[0][1]
-    overall_h = int(lip[3] * 2.3 * 1.25 * r)  # 7.5*0.8
-    overall_w = int(lip[2] * 1.8 * 1.25 * r)  #
+    overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
+    overall_w = int(lip[2] * 1.8 * 1.25 * r / 2)
     buffer = np.empty((len(record), size[1], size[0], 3), np.dtype("float32"))
     i = 0
     fourcc = cv2.VideoWriter_fourcc(*"I420")
@@ -58,10 +70,11 @@ def recognize(record, j, c):
     video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
     for entry in record:
         lip = entry[1]
-        center = np.array((lip[0] + lip[2] // 2, lip[1] + lip[3] // 2)) * r
+        center_x = int((lip[0] + lip[2] / 2) * r)
+        center_y = int((lip[1] + lip[3] / 2) * r)
         frame = entry[0]
-        frame = cv2.resize(frame[center[1] - overall_h // 2:center[1] + overall_h // 2,
-                                 center[0] - overall_w // 2:center[0] + overall_w // 2], size)
+        frame = cv2.resize(frame[center_y - overall_h:center_y + overall_h,
+                                 center_x - overall_w:center_x + overall_w], size)
         buffer[i] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         video_writer.write(frame)
         i += 1
@@ -113,22 +126,28 @@ if __name__ == "__main__":
         'scroll_down',
         'click']
     commands = random.sample(origin_commands, len(origin_commands))
-    
+
+    # multiprocessing camera
+    command_index = Value("i", 0)
     top_flag = Value("i", 0)
     stat_flag = Value("i", 1)
     lip_rect = Array('i', [0, 0, 0, 0])
-    raw_array = RawArray(ctypes.c_uint8, 800 * 600 * 3 * 100)
-    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 600, 800, 3))
-    camera_process = Process(target=get, args=(raw_array, top_flag, stat_flag, lip_rect))
+    raw_array = RawArray(ctypes.c_uint8, 500 * 500 * 3 * 100)
+    X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
+    camera_process = Process(target=get, args=(
+        raw_array, top_flag, stat_flag, lip_rect, command_index))
     camera_process.start()
 
+    # dlib model loading
     path = "H:/GazeLipDatasets/" + args.subject
     DETECTOR = dlib.get_frontal_face_detector()
     PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
-    buffer = queue.Queue(maxsize=25)
+    buffer = queue.Queue(maxsize=buffer_size)
     c = commands.pop(0)
-    t1 = 0
+    command_index.value = origin_commands.index(c)
+    t_close = 0
+    t_open = 0
     print(f"next command is {c}")
     if not os.path.exists(f"{path}/{c}"):
         os.makedirs(f"{path}/{c}")
@@ -146,7 +165,7 @@ if __name__ == "__main__":
         frame = X_2[exflag % 100]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (160, 120)), cv2.COLOR_BGR2GRAY)
+            frame, (140, 140)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
             if not cleared:
                 os.system("cls")
@@ -160,25 +179,31 @@ if __name__ == "__main__":
             shape = PREDICTOR(image, rects[0])
             np_shape = face_utils.shape_to_np(shape)
             lip = cv2.boundingRect(np_shape[48:68])
-            lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
-                lip)
             mo_angle = np.linalg.norm(
                 np_shape[62] - np_shape[66]) / np.linalg.norm(np_shape[60] - np_shape[64])
             if not mouth_open:
                 buffer.put_nowait([frame, lip])
-                if cleared and mo_angle > 0.1:
-                    print("capturing speech")
-                    mouth_open = True
-                    stat_flag.value = 2
-                    record = list(buffer.queue)
-                    buffer = queue.Queue(maxsize=25)
+                if cleared and mo_angle > mo_threshold:
+                    t_open += 1
+                    if t_open == to_threshold:
+                        lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
+                            lip)
+                        print("capturing speech")
+                        mouth_open = True
+                        stat_flag.value = 2
+                        record = list(buffer.queue)
+                        buffer = queue.Queue(maxsize=buffer_size)
+                        t_open = 0
+                else:
+                    t_open = 0
             else:
+                lip_rect[0], lip_rect[1], _, _ = calculate_rect(lip)
                 record.append([frame, lip])
-                t1 = t1 + 1 if mo_angle < 0.1 else 0
-            if t1 > 25 or len(record) == 180:
+                t_close = t_close + 1 if mo_angle < mo_threshold else 0
+            if t_close > tc_threshold or len(record) == 180:
                 print(f"collected {len(record)} frames")
                 stat_flag.value = 0
-                if len(record) <= 65:
+                if len(record) <= tc_threshold+buffer_size+5:
                     print(f"{colored(' Too short, say the command again ', 'red')}")
                 else:
                     print(
@@ -190,7 +215,7 @@ if __name__ == "__main__":
                             j = 0
                             commands = random.sample(
                                 origin_commands, len(origin_commands))
-                            if k % 5 == 0:
+                            if k % 2 == 0:
                                 print(
                                     f"\n\nCollected {k} groups. Press Enter key twice to continue")
                                 while True:
@@ -199,6 +224,7 @@ if __name__ == "__main__":
 
                             k += 1
                         c = commands.pop(0)
+                        command_index.value = origin_commands.index(c)
                         if not os.path.exists(f"{path}/{c}"):
                             os.makedirs(f"{path}/{c}")
                     else:
@@ -206,8 +232,8 @@ if __name__ == "__main__":
 
                 record = []
                 cleared = False
-                stat_flag.value = 1
-                top_flag.value = 0
                 exflag = 0
+                top_flag.value = 0
+                stat_flag.value = 1
                 mouth_open = False
-                t1 = 0
+                t_close = 0
