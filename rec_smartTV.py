@@ -20,8 +20,10 @@ mo_threshold = 0.1
 to_threshold = 5
 tc_threshold = 30
 buffer_size = 35
+model_path = "H:/Gaze-Lip-Data/GazeLipModels/zxsu1020_model"
 
-def get(raw_array, top_flag, stat_flag, lip_rect):
+
+def get(raw_array, top_flag, stat_flag):
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -66,8 +68,8 @@ def recognize(record):
         frame = entry[0]
         frame = cv2.resize(frame[center_y - overall_h:center_y + overall_h,
                                  center_x - overall_w:center_x + overall_w], size)
-        cv2.imshow("window", cv2.resize(frame, (400, 200)))
-        cv2.waitKey(16)
+        # cv2.imshow("window", cv2.resize(frame, (400, 200)))
+        # cv2.waitKey(16)
         buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         count += 1
 
@@ -135,9 +137,9 @@ if __name__ == "__main__":
 
     # channelListFuncDict = ["music","gaming","news","movies"]
     COMMANDS = sorted(
-        ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'maximize',
+        ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen',
          'expand', 'delete', 'save', 'like', 'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending',
-         'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down', 'click'])
+         'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down'])
     print("waiting for ws client...")
     if not TEST:
         CONNECTION = connect_web_socket(10130)
@@ -147,15 +149,10 @@ if __name__ == "__main__":
     print("recognition model ready")
     print("reading lip model")
     LIP_MODEL = R2Plus1DClassifier(
-        num_classes=28, layer_sizes=(2, 2, 2, 2, 2, 2))
+        num_classes=27, layer_sizes=(2, 2, 2, 2, 2, 2))
     state_dicts = torch.load(
-        "xin3060", map_location=torch.device("cuda:0"))
+        model_path, map_location=torch.device("cuda:0"))
     LIP_MODEL.load_state_dict(state_dicts["state_dict"])
-    # load classifier
-    # CLASSIFIER = nn.Linear(1024,7)
-    # CLASSIFIER.load_state_dict(torch.load("3060training10_classifier7",map_location=torch.device("cuda:0")))
-    # CLASSIFIER.cuda()
-    # CLASSIFIER.eval()
     LIP_MODEL.cuda()
     LIP_MODEL.eval()
 
@@ -165,11 +162,10 @@ if __name__ == "__main__":
     print("camera preparing")
     top_flag = Value("i", 0)
     stat_flag = Value("i", 1)
-    lip_rect = Array('i', [0, 0, 0, 0])
     raw_array = RawArray(ctypes.c_uint8, 500 * 500 * 3 * 100)
     X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     camera_process = Process(target=get, args=(
-        raw_array, top_flag, stat_flag, lip_rect))
+        raw_array, top_flag, stat_flag))
     camera_process.start()
     print("camera ready")
 
@@ -205,8 +201,6 @@ if __name__ == "__main__":
                         if t_open == to_threshold:
                             t_open = 0
                             print("capturing speech")
-                            lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
-                                lip)
                             # stat_flag.value = 2
                             mouth_open = True
                             record = list(buffer.queue)
@@ -217,7 +211,6 @@ if __name__ == "__main__":
                     else:
                         t_open = 0
                 else:
-                    lip_rect[0], lip_rect[1], _, _ = calculate_rect(lip)
                     record.append([frame, lip])
                     t_close = t_close + 1 if mo_angle < mo_threshold else 0
 

@@ -15,14 +15,14 @@ from imutils import face_utils
 import time 
 
 mo_threshold = 0.1
-to_threshold = 5
-tc_threshold = 30
-buffer_size = 35
+to_threshold = 0
+tc_threshold = 20
+buffer_size = 30
 
 
 def get(raw_array, top_flag, stat_flag, lip_rect, i):
-    origin_commands = ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'maximize', 'expand', 'delete', 'save', 'like',
-                       'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending', 'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down', 'click']
+    origin_commands = ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen', 'expand', 'delete', 'save', 'like',
+                       'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending', 'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down']
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -60,7 +60,7 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i):
 
 
 def calculate_rect(lip):
-    r = 5/1.4
+    r = 5
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
     overall_h = int(lip[3] * 2.91 * r / 2) # 2.3*1.25
@@ -69,7 +69,7 @@ def calculate_rect(lip):
 
 
 def recognize(record, j, c):
-    r = 5/1.4
+    r = 5
     size = (120, 60)
     lip = record[0][1]
     overall_h = int(lip[3] * 2.91 * r / 2)
@@ -118,7 +118,7 @@ if __name__ == "__main__":
         'next',
         'volume_up',
         'volume_down',
-        'maximize',
+        'full_screen',
         'expand',
         'delete',
         'save',
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     camera_process.start()
 
     # dlib model loading
-    path = "H:/GazeLipDatasets/" + args.subject
+    path = "H:/Gaze-Lip-Data/GazeLipDatasets/" + args.subject
     DETECTOR = dlib.get_frontal_face_detector()
     PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         frame = X_2[exflag % 100]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (140, 140)), cv2.COLOR_BGR2GRAY)
+            frame, (100, 100)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
             if not cleared:
                 os.system("cls")
@@ -197,7 +197,7 @@ if __name__ == "__main__":
                 buffer.put_nowait([frame, lip])
                 if cleared and mo_angle > mo_threshold:
                     t_open += 1
-                    if t_open == to_threshold:
+                    if t_open > to_threshold:
                         lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
                             lip)
                         print("capturing speech")

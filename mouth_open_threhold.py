@@ -8,7 +8,7 @@ import time
 from multiprocessing import RawArray, Value, Process, Array, Pipe
 import ctypes
 import cv2
-
+import  matplotlib.pyplot as plt
 DETECTOR = dlib.get_frontal_face_detector()
 PREDICTOR = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
@@ -59,6 +59,7 @@ if __name__ == "__main__":
     temp = 0
     X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     lip_rect = [0,0,0,0]
+    angle_list = []
     while True:
         time_ = float(con2.recv_bytes(18))
         temp+=(time.time() - time_)
@@ -75,6 +76,7 @@ if __name__ == "__main__":
             lip = cv2.boundingRect(shape[48:68])
             angle = np.linalg.norm(
                 shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
+            angle_list.append(angle)
             if angle > 0.13:
                 lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(lip)
                 cv2.rectangle(
@@ -99,6 +101,10 @@ if __name__ == "__main__":
         key = cv2.waitKey(delay) & 0xFF
         if key == ord('q'):
             break
-
+    x = np.linspace(0,1,len(angle_list))
+    y = np.array(angle_list)
     cv2.destroyWindow(window_name)
+    plt.plot(x, y, label="mouth open angle")
+    plt.legend()
+    plt.show()
     sys.exit()
