@@ -15,6 +15,7 @@ from WebsocketData import connect_web_socket, send_msg, get_data
 import pyautogui
 import ctypes
 import csv
+import datetime
 
 mo_threshold = 0.1
 to_threshold = 0
@@ -27,7 +28,7 @@ def get(raw_array, top_flag, stat_flag,lip_rect):
     size = (500,500)
     fourcc = cv2.VideoWriter_fourcc(*"XVID")
     fps = 60
-    save_name = f"H:/Gaze-Lip-Data/{START_DATETIME}.avi"
+    save_name = f"H:/Gaze-Lip-Data/{datetime.datetime.now()}.avi"
     video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
 
     exp = -6
@@ -111,9 +112,7 @@ def recognize(record):
         command = max(temp_output, key=lambda x: x[1])[0]
         print("------" + command + "------")
         Recording.append([time.time()-START_TIME, sorted_commands[-1][1], command])
-        if command == "click":
-            pyautogui.click()
-        elif command == "maximize":
+        if command == "full_screen":
             pyautogui.press("f")
             send_msg(CONNECTION, command.encode("utf-8"))
             get_data(CONNECTION.recv(64))
@@ -138,7 +137,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     TEST = args.test
 
-    FUNC_DICTS = {"General": ["scroll_up", "scroll_down", "go_back", "go_forward", "click"],
+    FUNC_DICTS = {"General": ["scroll_up", "scroll_down", "go_back", "go_forward"],
                   "SideMenu": ["home", "trending", "subscription", "original", "library"],
                   "NavigationBar": ["profile", "notification", "home"],
                   "Thumbnail": ["play", "watch_later", "add_to_queue"],
@@ -147,7 +146,7 @@ if __name__ == "__main__":
                   "Queue": ["delete", "play"],
                   "LikeMenu": ["like", "dislike", "share", "save"],
                   "MainPlayer": ["caption", "play", "stop", "go_back", "go_forward", "previous", "next",
-                                 "volume_up", "volume_down", "maximize"]}
+                                 "volume_up", "volume_down", "full_screen"]}
 
     # channelListFuncDict = ["music","gaming","news","movies"]
     COMMANDS = sorted(
@@ -190,7 +189,7 @@ if __name__ == "__main__":
     t_close = 0
     t_open = 0
     exflag = 0
-    import datetime
+    
     START_TIME = time.time()
     START_DATETIME = datetime.datetime.now()
     Recording.append([START_DATETIME,"record"])
