@@ -16,7 +16,7 @@ import time
 
 mo_threshold = 0.1
 to_threshold = 0
-tc_threshold = 20
+tc_threshold = 30
 buffer_size = 30
 
 
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         frame = X_2[exflag % 100]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (100, 100)), cv2.COLOR_BGR2GRAY)
+            frame, (120, 120)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
             if not cleared:
                 os.system("cls")

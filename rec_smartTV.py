@@ -17,13 +17,19 @@ import ctypes
 import csv
 
 mo_threshold = 0.1
-to_threshold = 5
+to_threshold = 0
 tc_threshold = 30
-buffer_size = 35
+buffer_size = 30
 model_path = "H:/Gaze-Lip-Data/GazeLipModels/zxsu1020_model"
 
 
-def get(raw_array, top_flag, stat_flag):
+def get(raw_array, top_flag, stat_flag,lip_rect):
+    size = (500,500)
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    fps = 60
+    save_name = f"H:/Gaze-Lip-Data/{START_DATETIME}.avi"
+    video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
+
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -38,7 +44,17 @@ def get(raw_array, top_flag, stat_flag):
         if stat_flag.value:
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
-
+            if stat_flag.value == 2:
+                cv2.rectangle(frame, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
+                top_flag.value += 1
+        video_writer.write(frame)
+def calculate_rect(lip):
+    r = 5/1.2
+    center_x = int((lip[0] + lip[2] / 2) * r)
+    center_y = int((lip[1] + lip[3] / 2) * r)
+    overall_h = int(lip[3] * 1.94 * r / 2) # 2.3*1.25
+    overall_w = int(lip[2] * 1.6 * r / 2) # 1.8 *1.25
+    return center_x, center_y, overall_w, overall_h
 
 def recognize(record):
     global CONNECTION
@@ -50,8 +66,8 @@ def recognize(record):
     global CONTEXT
     global TEST
     global Recording
-    global Recording_count
-    r = 5/1.4
+
+    r = 5/1.2
 
     t1 = time.time()
     # crop image
@@ -94,8 +110,7 @@ def recognize(record):
         temp_output = [(x, outputs[x]) for x in temp_list]
         command = max(temp_output, key=lambda x: x[1])[0]
         print("------" + command + "------")
-        Recording.append([Recording_count, time.time(),
-                          sorted_commands[-1][1], command])
+        Recording.append([time.time()-START_TIME, sorted_commands[-1][1], command])
         if command == "click":
             pyautogui.click()
         elif command == "maximize":
@@ -112,7 +127,6 @@ def recognize(record):
 
 if __name__ == "__main__":
     Recording = []
-    Recording_count = 0
     import argparse
 
     parser = argparse.ArgumentParser(description="Process some integers.")
@@ -160,12 +174,13 @@ if __name__ == "__main__":
     print("lip model ready")
 
     print("camera preparing")
+    lip_rect = Array('i', [0, 0, 0, 0])
     top_flag = Value("i", 0)
     stat_flag = Value("i", 1)
     raw_array = RawArray(ctypes.c_uint8, 500 * 500 * 3 * 100)
     X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     camera_process = Process(target=get, args=(
-        raw_array, top_flag, stat_flag))
+        raw_array, top_flag, stat_flag,lip_rect))
     camera_process.start()
     print("camera ready")
 
@@ -175,7 +190,10 @@ if __name__ == "__main__":
     t_close = 0
     t_open = 0
     exflag = 0
-
+    import datetime
+    START_TIME = time.time()
+    START_DATETIME = datetime.datetime.now()
+    Recording.append([START_DATETIME,"record"])
     try:
         while True:
             while True:
@@ -183,7 +201,7 @@ if __name__ == "__main__":
                     break
             frame = X_2[exflag % 100]
             exflag += 1
-            image = cv2.resize(frame, (140, 140))
+            image = cv2.resize(frame, (120, 120))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             rects = DETECTOR(image, 1)
             if buffer.full():
@@ -198,24 +216,26 @@ if __name__ == "__main__":
                     buffer.put_nowait([frame, lip])
                     if mo_angle > mo_threshold:
                         t_open += 1
-                        if t_open == to_threshold:
+                        if t_open > to_threshold:
+                            lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(lip)
                             t_open = 0
                             print("capturing speech")
-                            # stat_flag.value = 2
+                            stat_flag.value = 2
                             mouth_open = True
                             record = list(buffer.queue)
                             buffer = queue.Queue(maxsize=buffer_size)
+                            Recording.append([time.time()-START_TIME, "mouth open"])
                             if not TEST:
                                 send_msg(CONNECTION, "mo".encode('utf-8'))
                                 CONTEXT = get_data(CONNECTION.recv(64))
                     else:
                         t_open = 0
                 else:
+                    lip_rect[0], lip_rect[1], _, _ = calculate_rect(lip)
                     record.append([frame, lip])
                     t_close = t_close + 1 if mo_angle < mo_threshold else 0
 
                 if t_close > tc_threshold or len(record) == 180:
-                    Recording_count += 1
                     stat_flag.value = 0
                     print("speech finished")
                     if len(record) > buffer_size+tc_threshold+5:
@@ -223,7 +243,8 @@ if __name__ == "__main__":
                     else:
                         print(len(record))
                         Recording.append(
-                            [str(Recording_count), time.time(), "ignored"])
+                            [time.time()-START_TIME, "ignored"])
+                    Recording.append([time.time()-START_TIME, "mouth open"])
                     if not TEST:
                         send_msg(CONNECTION, "mc".encode('utf-8'))
                     record = []
