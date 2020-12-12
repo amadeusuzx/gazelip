@@ -21,6 +21,7 @@ def gaze_data(eyetracker):
 
     # Wait while some gaze data is collected.
     time.sleep(2)
+    counter = 0
     while True:
         left = global_gaze_data["left_gaze_point_on_display_area"]
         right = global_gaze_data["right_gaze_point_on_display_area"]
@@ -28,26 +29,27 @@ def gaze_data(eyetracker):
             curr_gaze_point = np.array([(left[0]+right[0])/2,(left[1]+right[1])/2])
             dis = np.linalg.norm((curr_gaze_point - opti_gaze_point))
             if dis > 0.1:
+                counter=0
                 opti_gaze_point = opti_gaze_point * 0.3 + curr_gaze_point * 0.7
             elif dis > 0.05:
+                counter=0
                 opti_gaze_point = opti_gaze_point * 0.7 + curr_gaze_point * 0.3
             else:
+                counter+=1
+                if counter > 15:
+                    pyautogui.click()
+                    counter = 0
                 opti_gaze_point = opti_gaze_point * 0.7 + curr_gaze_point * 0.3
+        
                 
             pyautogui.moveTo(opti_gaze_point[0]*1920*2,opti_gaze_point[1]*1080*2)
 
-
-    print("Last received gaze package:")
-    print(global_gaze_data)
 if __name__ == "__main__":
 
     pyautogui.FAILSAFE = False
     global_gaze_data = None
     
     for eyeTracker in tr.find_all_eyetrackers():
-        try:
-            print("find eyetracker")
-            gaze_data(eyeTracker)
-        except:
-            eyeTracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, gaze_data_callback)
-            print("Unsubscribed from gaze data.")
+
+        print("find eyetracker")
+        gaze_data(eyeTracker)

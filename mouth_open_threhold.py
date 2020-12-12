@@ -32,7 +32,7 @@ def get(raw_array, pipe):
         flag+=1
 
 def calculate_rect(lip):
-    r = 5/1.4
+    r = 5
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
     overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         frame = X_2[exflag % 100 ]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (140, 140)), cv2.COLOR_BGR2GRAY)
+            frame, (100, 100)), cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
         t1 = time.time()
         for (_, rect) in enumerate(rects):

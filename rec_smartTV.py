@@ -16,19 +16,19 @@ import pyautogui
 import ctypes
 import csv
 import datetime
-
-mo_threshold = 0.1
+import random
+mo_threshold = 0.25
 to_threshold = 0
 tc_threshold = 30
 buffer_size = 30
-model_path = "H:/Gaze-Lip-Data/GazeLipModels/zxsu1020_model"
+model_path = "H:/Gaze-Lip-Data/GazeLipModels/vivi.pt"
 
 
 def get(raw_array, top_flag, stat_flag,lip_rect):
     size = (500,500)
     fourcc = cv2.VideoWriter_fourcc(*"XVID")
     fps = 60
-    save_name = f"H:/Gaze-Lip-Data/{datetime.datetime.now()}.avi"
+    save_name = f"H:/Gaze-Lip-Data/record{random.randint(1,10000)}.avi"
     video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
 
     exp = -6
@@ -47,10 +47,9 @@ def get(raw_array, top_flag, stat_flag,lip_rect):
             top_flag.value += 1
             if stat_flag.value == 2:
                 cv2.rectangle(frame, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-                top_flag.value += 1
         video_writer.write(frame)
 def calculate_rect(lip):
-    r = 5/1.2
+    r = 5
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
     overall_h = int(lip[3] * 1.94 * r / 2) # 2.3*1.25
@@ -68,7 +67,7 @@ def recognize(record):
     global TEST
     global Recording
 
-    r = 5/1.2
+    r = 5
 
     t1 = time.time()
     # crop image
@@ -138,7 +137,7 @@ if __name__ == "__main__":
     TEST = args.test
 
     FUNC_DICTS = {"General": ["scroll_up", "scroll_down", "go_back", "go_forward"],
-                  "SideMenu": ["home", "trending", "subscription", "original", "library"],
+                  "SideMenu": ["home", "trending", "subscription", "original", "library","watch_later","like"],
                   "NavigationBar": ["profile", "notification", "home"],
                   "Thumbnail": ["play", "watch_later", "add_to_queue"],
                   "MiniPlayer": ["expand", "play", "stop", "previous", "next"],
@@ -200,7 +199,7 @@ if __name__ == "__main__":
                     break
             frame = X_2[exflag % 100]
             exflag += 1
-            image = cv2.resize(frame, (120, 120))
+            image = cv2.resize(frame, (100, 100))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             rects = DETECTOR(image, 1)
             if buffer.full():
