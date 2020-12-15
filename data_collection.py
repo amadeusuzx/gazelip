@@ -14,11 +14,12 @@ import dlib
 from imutils import face_utils
 import time 
 
-mo_threshold = 0.25
+mo_threshold = 0.14
 to_threshold = 0
 tc_threshold = 30
-buffer_size = 30
-
+buffer_size = 15
+block_size = 2
+face_recognition_size = 120
 
 def get(raw_array, top_flag, stat_flag, lip_rect, i):
     origin_commands = ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen', 'expand', 'delete', 'save', 'like',
@@ -42,13 +43,13 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i):
                 cv2.rectangle(
                     frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
             frame_copy = cv2.flip(frame_copy, 1)
-            cv2.putText(frame_copy, origin_commands[i.value].replace("_"," "), (150, 450),
+            cv2.putText(frame_copy, origin_commands[i.value].replace("_"," "), (175, 360),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (160, 160, 0), 2, cv2.LINE_AA)
         elif stat_flag.value == 0:
             frame_copy = cv2.flip(frame_copy, 1)
             cv2.putText(frame_copy, "press space key to continue", (50, 450),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
-            cv2.putText(frame_copy, "press any other key to discard", (50, 470),
+            cv2.putText(frame_copy, "press 'Q' to discard", (50, 470),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
         elif stat_flag.value == -1:
             frame_copy = cv2.flip(frame_copy, 1)
@@ -58,9 +59,8 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i):
         cv2.imshow("window", frame_copy)
         cv2.waitKey(1)
 
-
 def calculate_rect(lip):
-    r = 5
+    r = 500/160
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
     overall_h = int(lip[3] * 2.91 * r / 2) # 2.3*1.25
@@ -69,7 +69,7 @@ def calculate_rect(lip):
 
 
 def recognize(record, j, c):
-    r = 5
+    r = 500/160
     size = (120, 60)
     lip = record[0][1]
     overall_h = int(lip[3] * 2.91 * r / 2)
@@ -103,11 +103,10 @@ if __name__ == "__main__":
                         help="subject name and folder name")
     parser.add_argument("--num", type=int, help="start num")
 
-    args = parser.parse_args()
-    if not args.subject:
-        print("input parameters!")
-        sys.exit()
 
+    args = parser.parse_args()
+    if  args.subject == "test":
+        block_size = 1
     origin_commands = [
         'caption',
         'play',
@@ -176,7 +175,7 @@ if __name__ == "__main__":
         frame = X_2[exflag % 100]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (100, 100)), cv2.COLOR_BGR2GRAY)
+            frame, (160, 160)), cv2.COLOR_BGR2GRAY)
         if buffer.full():
             if not cleared:
                 os.system("cls")
@@ -215,19 +214,22 @@ if __name__ == "__main__":
                 print(f"collected {len(record)} frames")
                 if len(record) <= tc_threshold+buffer_size+5:
                     stat_flag.value = -1
-                    time.sleep(1)
+                    time.sleep(0.5)
                 else:
                     stat_flag.value = 0
+                    while msvcrt.kbhit():
+                        msvcrt.getch()
                     print(
-                        "Record captured! Press Space ␣ to save it, or any other key to discard")
+                        "Record captured! Press Space ␣ to save it, or press 'Q' to discard")
                     if msvcrt.getch() == b" ":
+                        
                         recognize(record, k, c)
                         j += 1
                         if j == len(origin_commands):
                             j = 0
                             commands = random.sample(
                                 origin_commands, len(origin_commands))
-                            if k % 2 == 0:
+                            if k % block_size == 0:
                                 print(
                                     f"\n\nCollected {k} groups. Press Enter key twice to continue")
                                 while True:
