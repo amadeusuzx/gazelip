@@ -14,8 +14,8 @@ import dlib
 from imutils import face_utils
 import time 
 
-mo_threshold = 0.14
-to_threshold = 0
+mo_threshold = 0.11
+to_threshold = 5
 tc_threshold = 30
 buffer_size = 15
 block_size = 2

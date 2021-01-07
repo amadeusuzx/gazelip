@@ -18,7 +18,6 @@ def get_data(info):
         chunk = decoded[i] ^ mask[i % 4]
         bytes_list.append(chunk)
     body = str(bytes_list, encoding='utf-8')
-    print(body)
     return body
 
 

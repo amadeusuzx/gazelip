@@ -116,7 +116,6 @@ def recognize(record):
     global PREDICTOR
     global LIP_MODEL
     global COMMANDS
-    global FUNC_DICTS
     global CONTEXT
     global TEST
     global Recording
@@ -159,19 +158,17 @@ def recognize(record):
 
         outputs = dict([(COMMANDS[i], outputs[0][i])
                         for i in range(len(COMMANDS))])
-        temp_list = FUNC_DICTS[CONTEXT]
-        temp_output = [(x, outputs[x]) for x in temp_list]
-        command = max(temp_output, key=lambda x: x[1])[0]
-        print("squeezed command: " + command)
-        Recording.append(
-            [time.time()-START_TIME, sorted_commands[-1][1], command])
-        if command == "full_screen":
-            pyautogui.press("f")
+        temp_list = CONTEXT.split(" ")
+        try:
+            temp_output = [(x, outputs[x]) for x in temp_list]
+            command = max(temp_output, key=lambda x: x[1])[0]
+            print("squeezed command: " + command)
+            Recording.append(
+                [time.time()-START_TIME, sorted_commands[-1][1], command])
             send_msg(CONNECTION, command.encode("utf-8"))
-            get_data(CONNECTION.recv(64))
-        else:
-            send_msg(CONNECTION, command.encode("utf-8"))
-            get_data(CONNECTION.recv(64))
+        except Exception as e:
+            print(temp_list)
+            print(e)
 
 
 if __name__ == "__main__":
@@ -179,23 +176,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Process some integers.")
-    parser.add_argument("--subject", type=str,default="test",
+    parser.add_argument("--subject", type=str, default="test",
                         help="subject name and folder name")
     parser.add_argument("--name", type=str, default="test", help="start name")
     parser.add_argument("--test", type=int, default=0,
                         help="whether communicate using websocket")
     args = parser.parse_args()
     TEST = args.test
-
-    FUNC_DICTS = {"SideMenu": ["home", "trending", "subscription", "original", "library", "watch_later", "like"],
-                  "NavigationBar": ["profile", "notification", "home","scroll_up", "scroll_down", "go_back", "go_forward"],
-                  "Thumbnail": ["play", "watch_later", "add_to_queue"],
-                  "MiniPlayer": ["expand", "play", "stop", "previous", "next"],
-                  "QueueHead": ["expand", "save"],
-                  "Queue": ["delete", "play"],
-                  "LikeMenu": ["like", "dislike", "share", "save"],
-                  "MainPlayer": ["caption", "play", "stop", "go_back", "go_forward", "previous", "next",
-                                 "volume_up", "volume_down", "full_screen"]}
 
     # channelListFuncDict = ["music","gaming","news","movies"]
     COMMANDS = sorted(
@@ -275,8 +262,8 @@ if __name__ == "__main__":
                         if t_open > to_threshold:
                             if not TEST:
                                 send_msg(CONNECTION, "mo".encode('utf-8'))
-                                CONTEXT = get_data(CONNECTION.recv(64))
-                                if CONTEXT == "null":
+                                CONTEXT = get_data(CONNECTION.recv(1024))
+                                if CONTEXT == "nogo":
                                     t_open = 0
                                     continue
                             lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
