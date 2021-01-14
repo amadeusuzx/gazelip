@@ -28,17 +28,17 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i, block_finished):
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
-    cap.set(cv2.CAP_PROP_FPS, 60)
-    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 768, 1024, 3))
     k = block_finished.value
     cv2.namedWindow('window')
     cv2.moveWindow('window', 250+(k % 3)*600, (k//3)*300)
     while True:
-        frame = cap.read()[1][50:550, 150:650, :]
+        frame = cap.read()[1]
         frame_copy = cv2.resize(frame, (500, 500))
         if stat_flag.value > 0:
             np.copyto(X_1[top_flag.value % 100], frame)
@@ -46,11 +46,11 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i, block_finished):
             if stat_flag.value == 2:
                 cv2.rectangle(
                     frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-            frame_copy = cv2.flip(frame_copy, 1)
+            frame_copy = cv2.flip(cv2.resize(frame_copy,(500,500), 1)
             cv2.putText(frame_copy, origin_commands[i.value].replace("_", " "), (175, 360),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 160, 0), 2, cv2.LINE_AA)
         elif stat_flag.value == 0:
-            frame_copy = cv2.flip(frame_copy, 1)
+            frame_copy = cv2.flip(cv2.resize(frame_copy,(500,500), 1)
             cv2.putText(frame_copy, "press space key to continue", (50, 450),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
             cv2.putText(frame_copy, "press 'Q' to discard", (50, 470),

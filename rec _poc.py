@@ -22,7 +22,7 @@ from threading import Thread
 
 mo_threshold = 0.1
 to_threshold = 5
-tc_threshold = 30
+tc_threshold = 15
 buffer_size = 15
 face_recognition_size = 120
 pyautogui.FAILSAFE = False

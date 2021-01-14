@@ -17,15 +17,15 @@ def get(raw_array, pipe):
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
-    cap.set(cv2.CAP_PROP_FPS, 60)
+    cap.set(cv2.CAP_PROP_FPS, 30)
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     flag = 0
     while True:
-        frame = cap.read()[1][50:550, 150:650, :]
+        frame = cap.read()[1][134:634, 262:762, :]
         # frame = cv2.resize(frame,(800,600))
         np.copyto(X_1[flag % 100], frame)
         pipe.send_bytes(str(time.time()).encode("utf-8"))
@@ -33,7 +33,7 @@ def get(raw_array, pipe):
 
 
 def calculate_rect(lip):
-    r = 5
+    r = 5/2
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
     overall_h = int(lip[3] * 2.3 * 1.25 * r / 2)
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         frame = X_2[exflag % 100]
         exflag += 1
         image = cv2.cvtColor(cv2.resize(
-            frame, (140, 140)), cv2.COLOR_BGR2GRAY)
+            frame, (200, 200)), cv2.COLOR_BGR2GRAY)
         rects = DETECTOR(image, 1)
         t1 = time.time()
         for (_, rect) in enumerate(rects):
@@ -87,7 +87,7 @@ if __name__ == "__main__":
             angle = np.linalg.norm(
                 shape[62] - shape[66]) / np.linalg.norm(shape[60] - shape[64])
             angle_list.append(angle)
-            if angle > 0.13:
+            if angle > 0.08:
                 lip_rect[0], lip_rect[1], lip_rect[2], lip_rect[3] = calculate_rect(
                     lip)
                 cv2.rectangle(

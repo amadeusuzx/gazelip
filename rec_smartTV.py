@@ -4,6 +4,7 @@ import queue
 import numpy as np
 import cv2
 import dlib
+import math 
 
 from imutils import face_utils
 from network import R2Plus1DClassifier
@@ -22,7 +23,7 @@ from threading import Thread
 
 mo_threshold = 0.1
 to_threshold = 5
-tc_threshold = 30
+tc_threshold = 15
 buffer_size = 15
 
 face_recognition_size = 120
@@ -148,13 +149,16 @@ def recognize(record):
     buffer = torch.tensor(np.expand_dims(buffer, axis=0)).cuda()
 
     outputs = LIP_MODEL(buffer).cpu().detach().numpy()
-
-    sorted_commands = sorted(list(zip(outputs[0], COMMANDS)))
+    probabilities = [math.exp(x) for x in outputs[0]]
+    exp_sum = sum(probabilities)
+    probabilities = np.array(probabilities)/exp_sum
+    sorted_commands = sorted(list(zip(probabilities, COMMANDS)))
+    print(sorted_commands)
     print("raw command: " + sorted_commands[-1][-1])
     if not TEST:
         # websocket communication & command execution
 
-        outputs = dict([(COMMANDS[i], outputs[0][i])
+        outputs = dict([(COMMANDS[i], probabilities)
                         for i in range(len(COMMANDS))])
         temp_list = FUNC_DICTS[CONTEXT]
         temp_output = [(x, outputs[x]) for x in temp_list]
