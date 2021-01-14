@@ -12,18 +12,19 @@ import numpy as np
 import cv2
 import dlib
 from imutils import face_utils
-import time 
+import time
 
-mo_threshold = 0.11
+mo_threshold = 0.1
 to_threshold = 5
 tc_threshold = 30
 buffer_size = 15
-block_size = 2
+block_size = 1
 face_recognition_size = 120
 
-def get(raw_array, top_flag, stat_flag, lip_rect, i):
+
+def get(raw_array, top_flag, stat_flag, lip_rect, i, block_finished):
     origin_commands = ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen', 'expand', 'delete', 'save', 'like',
-                       'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending', 'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down']
+                       'dislike', 'share', 'add_to_queue', 'watch_later', 'homepage', 'trending', 'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down']
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
@@ -33,6 +34,9 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i):
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
     cap.set(cv2.CAP_PROP_FPS, 60)
     X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
+    k = block_finished.value
+    cv2.namedWindow('window')
+    cv2.moveWindow('window', 250+(k % 3)*600, (k//3)*300)
     while True:
         frame = cap.read()[1][50:550, 150:650, :]
         frame_copy = cv2.resize(frame, (500, 500))
@@ -43,28 +47,32 @@ def get(raw_array, top_flag, stat_flag, lip_rect, i):
                 cv2.rectangle(
                     frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
             frame_copy = cv2.flip(frame_copy, 1)
-            cv2.putText(frame_copy, origin_commands[i.value].replace("_"," "), (175, 360),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (160, 160, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame_copy, origin_commands[i.value].replace("_", " "), (175, 360),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 160, 0), 2, cv2.LINE_AA)
         elif stat_flag.value == 0:
             frame_copy = cv2.flip(frame_copy, 1)
             cv2.putText(frame_copy, "press space key to continue", (50, 450),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
             cv2.putText(frame_copy, "press 'Q' to discard", (50, 470),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+            if block_finished.value != k:
+                k = block_finished.value
+                cv2.moveWindow('window', 250+(k % 3)*600, (k//3)*300)
         elif stat_flag.value == -1:
             frame_copy = cv2.flip(frame_copy, 1)
             cv2.putText(frame_copy, "speech is to short. try slower agiain", (50, 450),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
-        
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+
         cv2.imshow("window", frame_copy)
         cv2.waitKey(1)
+
 
 def calculate_rect(lip):
     r = 500/160
     center_x = int((lip[0] + lip[2] / 2) * r)
     center_y = int((lip[1] + lip[3] / 2) * r)
-    overall_h = int(lip[3] * 2.91 * r / 2) # 2.3*1.25
-    overall_w = int(lip[2] * 2.4 * r / 2) # 1.8 *1.25
+    overall_h = int(lip[3] * 2.91 * r / 2)  # 2.3*1.25
+    overall_w = int(lip[2] * 2.4 * r / 2)  # 1.8 *1.25
     return center_x, center_y, overall_w, overall_h
 
 
@@ -103,9 +111,8 @@ if __name__ == "__main__":
                         help="subject name and folder name")
     parser.add_argument("--num", type=int, help="start num")
 
-
     args = parser.parse_args()
-    if  args.subject == "test":
+    if args.subject == "test":
         block_size = 1
     origin_commands = [
         'caption',
@@ -126,7 +133,7 @@ if __name__ == "__main__":
         'share',
         'add_to_queue',
         'watch_later',
-        'home',
+        'homepage',
         'trending',
         'subscription',
         'original',
@@ -138,6 +145,8 @@ if __name__ == "__main__":
     commands = random.sample(origin_commands, len(origin_commands))
 
     # multiprocessing camera
+    k = args.num
+    block_finished = Value("i", k-1)
     command_index = Value("i", 0)
     top_flag = Value("i", 0)
     stat_flag = Value("i", 1)
@@ -145,7 +154,7 @@ if __name__ == "__main__":
     raw_array = RawArray(ctypes.c_uint8, 500 * 500 * 3 * 100)
     X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     camera_process = Process(target=get, args=(
-        raw_array, top_flag, stat_flag, lip_rect, command_index))
+        raw_array, top_flag, stat_flag, lip_rect, command_index, block_finished))
     camera_process.start()
 
     # dlib model loading
@@ -164,7 +173,7 @@ if __name__ == "__main__":
     mouth_open = False
     record = []
     j = 0
-    k = args.num
+
     cleared = False
     exflag = 0
 
@@ -222,7 +231,7 @@ if __name__ == "__main__":
                     print(
                         "Record captured! Press Space ␣ to save it, or press 'Q' to discard")
                     if msvcrt.getch() == b" ":
-                        
+
                         recognize(record, k, c)
                         j += 1
                         if j == len(origin_commands):
@@ -230,6 +239,9 @@ if __name__ == "__main__":
                             commands = random.sample(
                                 origin_commands, len(origin_commands))
                             if k % block_size == 0:
+                                if k == 9:
+                                    break
+                                block_finished.value = k
                                 print(
                                     f"\n\nCollected {k} groups. Press Enter key twice to continue")
                                 while True:

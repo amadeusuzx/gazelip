@@ -11,7 +11,7 @@ import torch
 
 from multiprocessing import Process, RawArray, Value, Array
 from WebsocketData import connect_web_socket, send_msg, get_data
-import pyautogui
+import pyautogui    
 import ctypes
 import csv
 import datetime
@@ -20,11 +20,11 @@ import subprocess
 import socket
 from threading import Thread
 
-mo_threshold = 0.10
+mo_threshold = 0.1
 to_threshold = 5
 tc_threshold = 30
 buffer_size = 15
-model_path = "H:/Gaze-Lip-Data/GazeLipModels/zxsu.pt"
+
 face_recognition_size = 120
 pyautogui.FAILSAFE = False
 
@@ -135,11 +135,8 @@ def recognize(record):
         center_x = int((lip[0] + lip[2] / 2) * r)
         center_y = int((lip[1] + lip[3] / 2) * r)
         frame = entry[0]
-        try:
-            frame = cv2.resize(frame[center_y - overall_h:center_y + overall_h,
-                                     center_x - overall_w:center_x + overall_w], size)
-        except:
-            pass
+        frame = cv2.resize(frame[center_y - overall_h:center_y + overall_h,
+                                    center_x - overall_w:center_x + overall_w], size)
         # cv2.imshow("window", cv2.resize(frame, (400, 200)))
         # cv2.waitKey(16)
         buffer[count] = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -168,10 +165,8 @@ def recognize(record):
         if command == "full_screen":
             pyautogui.press("f")
             send_msg(CONNECTION, command.encode("utf-8"))
-            get_data(CONNECTION.recv(64))
         else:
             send_msg(CONNECTION, command.encode("utf-8"))
-            get_data(CONNECTION.recv(64))
 
 
 if __name__ == "__main__":
@@ -186,9 +181,10 @@ if __name__ == "__main__":
                         help="whether communicate using websocket")
     args = parser.parse_args()
     TEST = args.test
+    model_path = "H:/Gaze-Lip-Data/GazeLipModels/"+args.subject+".pt"
 
-    FUNC_DICTS = {"SideMenu": ["home", "trending", "subscription", "original", "library", "watch_later", "like"],
-                  "NavigationBar": ["profile", "notification", "home","scroll_up", "scroll_down", "go_back", "go_forward"],
+    FUNC_DICTS = {"SideMenu": ["homepage", "trending", "subscription", "original", "library"],
+                  "NavigationBar": ["profile", "notification", "homepage","scroll_up", "scroll_down", "go_back", "go_forward"],
                   "Thumbnail": ["play", "watch_later", "add_to_queue"],
                   "MiniPlayer": ["expand", "play", "stop", "previous", "next"],
                   "QueueHead": ["expand", "save"],
@@ -200,7 +196,7 @@ if __name__ == "__main__":
     # channelListFuncDict = ["music","gaming","news","movies"]
     COMMANDS = sorted(
         ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen',
-         'expand', 'delete', 'save', 'like', 'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending',
+         'expand', 'delete', 'save', 'like', 'dislike', 'share', 'add_to_queue', 'watch_later', 'homepage', 'trending',
          'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down'])
     print("waiting for ws client...")
     if not TEST:
@@ -299,11 +295,12 @@ if __name__ == "__main__":
                 if t_close > tc_threshold or len(record) == 180:
                     stat_flag.value = 0
                     print(f"{len(record)} frames")
-                    if len(record) > buffer_size+tc_threshold:
-                        recognize(record)
-                    else:
-                        Recording.append(
-                            [time.time()-START_TIME, "ignored"])
+                    # if len(record) > buffer_size+tc_threshold:
+                    #                         else:
+                    #     Recording.append(
+                    #         [time.time()-START_TIME, "ignored"])
+                    recognize(record)
+
                     Recording.append([time.time()-START_TIME, "mouth closed"])
                     record = []
                     exflag = 0

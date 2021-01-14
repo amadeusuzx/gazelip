@@ -20,11 +20,10 @@ import subprocess
 import socket
 from threading import Thread
 
-mo_threshold = 0.10
+mo_threshold = 0.1
 to_threshold = 5
 tc_threshold = 30
 buffer_size = 15
-model_path = "H:/Gaze-Lip-Data/GazeLipModels/zxsu.pt"
 face_recognition_size = 120
 pyautogui.FAILSAFE = False
 
@@ -90,14 +89,14 @@ def get(raw_array, top_flag, stat_flag, lip_rect):
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
 
-        if stat_flag.value == 2:
-            frame_copy = np.copy(frame)
-            cv2.rectangle(frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]),
-                          (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-            cv2.imshow("window", frame_copy)
-        else:
-            cv2.imshow("window", frame)
-        cv2.waitKey(1)
+        # if stat_flag.value == 2:
+        #     frame_copy = np.copy(frame)
+        #     cv2.rectangle(frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]),
+        #                   (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
+        #     cv2.imshow("window", frame_copy)
+        # else:
+        #     cv2.imshow("window", frame)
+        # cv2.waitKey(1)
         # video_writer.write(frame)
 
 
@@ -152,23 +151,21 @@ def recognize(record):
     outputs = LIP_MODEL(buffer).cpu().detach().numpy()
 
     sorted_commands = sorted(list(zip(outputs[0], COMMANDS)))
-    print("raw command: " + sorted_commands[-1][-1])
+    raw_command = sorted_commands[-1][-1]
+    print("raw command: " + raw_command)
     if not TEST:
         # websocket communication & command execution
 
         outputs = dict([(COMMANDS[i], outputs[0][i])
                         for i in range(len(COMMANDS))])
         temp_list = CONTEXT.split(" ")
-        try:
-            temp_output = [(x, outputs[x]) for x in temp_list]
-            command = max(temp_output, key=lambda x: x[1])[0]
-            print("squeezed command: " + command)
-            Recording.append(
-                [time.time()-START_TIME, sorted_commands[-1][1], command])
-            send_msg(CONNECTION, command.encode("utf-8"))
-        except Exception as e:
-            print(temp_list)
-            print(e)
+
+        temp_output = [(x, outputs[x]) for x in temp_list]
+        command = max(temp_output, key=lambda x: x[1])[0]
+        print("squeezed command: " + command)
+        Recording.append(
+            [time.time()-START_TIME, sorted_commands[-1][1], command])
+        send_msg(CONNECTION, (command+" "+raw_command).encode("utf-8"))
 
 
 if __name__ == "__main__":
@@ -183,11 +180,11 @@ if __name__ == "__main__":
                         help="whether communicate using websocket")
     args = parser.parse_args()
     TEST = args.test
-
+    model_path = "H:/Gaze-Lip-Data/GazeLipModels/"+args.subject+".pt"
     # channelListFuncDict = ["music","gaming","news","movies"]
     COMMANDS = sorted(
         ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen',
-         'expand', 'delete', 'save', 'like', 'dislike', 'share', 'add_to_queue', 'watch_later', 'home', 'trending',
+         'expand', 'delete', 'save', 'like', 'dislike', 'share', 'add_to_queue', 'watch_later', 'homepage', 'trending',
          'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down'])
     print("waiting for ws client...")
     if not TEST:
@@ -286,11 +283,12 @@ if __name__ == "__main__":
                 if t_close > tc_threshold or len(record) == 180:
                     stat_flag.value = 0
                     print(f"{len(record)} frames")
-                    if len(record) > buffer_size+tc_threshold:
-                        recognize(record)
-                    else:
-                        Recording.append(
-                            [time.time()-START_TIME, "ignored"])
+                    # if len(record) > buffer_size+tc_threshold:
+                    #                         else:
+                    #     Recording.append(
+                    #         [time.time()-START_TIME, "ignored"])
+                    recognize(record)
+
                     Recording.append([time.time()-START_TIME, "mouth closed"])
                     record = []
                     exflag = 0

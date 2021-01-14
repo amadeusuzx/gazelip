@@ -65,6 +65,10 @@ if __name__ == "__main__":
     lip_rect = [0, 0, 0, 0]
     angle_list = []
     lost_frame = 0
+    s=0
+    cv2.namedWindow(window_name)
+    cv2.moveWindow(window_name,300,0)
+    
     while True:
         time_ = float(con2.recv_bytes(18))
         temp += (time.time() - time_)
@@ -113,11 +117,15 @@ if __name__ == "__main__":
                     (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), thickness=2)
         
         cv2.imshow(window_name, frame)
+        
         count += 1
 
         key = cv2.waitKey(delay) & 0xFF
         if key == ord('q'):
             break
+        if key == ord('s'):
+            s+=1
+            cv2.moveWindow(window_name,250+(s%3)*600,(s//3)*300)
     x = np.linspace(0, 1, len(angle_list))
     y = np.array(angle_list)
     cv2.destroyWindow(window_name)
