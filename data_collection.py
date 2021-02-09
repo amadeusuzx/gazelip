@@ -16,51 +16,54 @@ import time
 
 mo_threshold = 0.1
 to_threshold = 5
-tc_threshold = 30
-buffer_size = 15
-block_size = 1
+tc_threshold = 15
+buffer_size = 30
+block_size = 2
 face_recognition_size = 120
 
 
-def get(raw_array, top_flag, stat_flag, lip_rect, i, block_finished):
+def get(raw_array, top_flag, stat_flag, lip_rect, i, block_finished,show_command):
     origin_commands = ['caption', 'play', 'stop', 'go_back', 'go_forward', 'previous', 'next', 'volume_up', 'volume_down', 'full_screen', 'expand', 'delete', 'save', 'like',
                        'dislike', 'share', 'add_to_queue', 'watch_later', 'homepage', 'trending', 'subscription', 'original', 'library', 'profile', 'notification', 'scroll_up', 'scroll_down']
     exp = -6
     brightness = 10
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
     cap.set(cv2.CAP_PROP_EXPOSURE, exp)
     cap.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 768, 1024, 3))
-    k = block_finished.value
+    cap.set(cv2.CAP_PROP_FPS, 60)
+    X_1 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
+    k = 1
     cv2.namedWindow('window')
-    cv2.moveWindow('window', 250+(k % 3)*600, (k//3)*300)
+    cv2.moveWindow('window', 25+(k % 3)*500, (k//3)*150)
     while True:
-        frame = cap.read()[1]
+        frame = cap.read()[1][50:550, 150:650, :]
         frame_copy = cv2.resize(frame, (500, 500))
+        cv2.fillPoly(frame_copy, [np.array(
+            [[0, 440], [499, 440], [499, 499], [0, 499]], dtype=np.int32)], (0, 0, 0))
         if stat_flag.value > 0:
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
             if stat_flag.value == 2:
                 cv2.rectangle(
                     frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]), (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-            frame_copy = cv2.flip(cv2.resize(frame_copy,(500,500), 1)
-            cv2.putText(frame_copy, origin_commands[i.value].replace("_", " "), (175, 360),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 160, 0), 2, cv2.LINE_AA)
+            frame_copy = cv2.flip(frame_copy, 1)
+            if show_command.value:
+                cv2.putText(frame_copy, origin_commands[i.value].replace("_", " "), (130, 475),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 160, 0), 2, cv2.LINE_AA)
         elif stat_flag.value == 0:
-            frame_copy = cv2.flip(cv2.resize(frame_copy,(500,500), 1)
-            cv2.putText(frame_copy, "press space key to continue", (50, 450),
+            frame_copy = cv2.flip(frame_copy, 1)
+            cv2.putText(frame_copy, "press space key to continue", (50, 460),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
-            cv2.putText(frame_copy, "press 'Q' to discard", (50, 470),
+            cv2.putText(frame_copy, "press any other key to discard", (50, 480),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
             if block_finished.value != k:
                 k = block_finished.value
-                cv2.moveWindow('window', 250+(k % 3)*600, (k//3)*300)
+                cv2.moveWindow('window', 25+(k % 3)*500, (k//3)*150)
         elif stat_flag.value == -1:
             frame_copy = cv2.flip(frame_copy, 1)
-            cv2.putText(frame_copy, "speech is to short. try slower agiain", (50, 450),
+            cv2.putText(frame_copy, "speech is to short. try slower agiain", (50, 460),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
 
         cv2.imshow("window", frame_copy)
@@ -146,15 +149,16 @@ if __name__ == "__main__":
 
     # multiprocessing camera
     k = args.num
-    block_finished = Value("i", k-1)
+    block_finished = Value("i", (k-1)//2)
     command_index = Value("i", 0)
+    show_command = Value("i", 0)
     top_flag = Value("i", 0)
     stat_flag = Value("i", 1)
     lip_rect = Array('i', [0, 0, 0, 0])
     raw_array = RawArray(ctypes.c_uint8, 500 * 500 * 3 * 100)
     X_2 = np.frombuffer(raw_array, dtype=np.uint8).reshape((100, 500, 500, 3))
     camera_process = Process(target=get, args=(
-        raw_array, top_flag, stat_flag, lip_rect, command_index, block_finished))
+        raw_array, top_flag, stat_flag, lip_rect, command_index, block_finished, show_command))
     camera_process.start()
 
     # dlib model loading
@@ -191,6 +195,7 @@ if __name__ == "__main__":
                 print(
                     f"\n\n\n\n\n\n                               {colored(c, 'cyan', attrs=['bold'])}\n\n\n")
                 cleared = True
+                show_command.value = 1
             buffer.get_nowait()
 
         rects = DETECTOR(image, 1)
@@ -221,6 +226,7 @@ if __name__ == "__main__":
                 t_close = t_close + 1 if mo_angle < mo_threshold else 0
             if t_close > tc_threshold or len(record) == 180:
                 print(f"collected {len(record)} frames")
+                show_command.value = 0
                 if len(record) <= tc_threshold+buffer_size+5:
                     stat_flag.value = -1
                     time.sleep(0.5)
@@ -241,7 +247,7 @@ if __name__ == "__main__":
                             if k % block_size == 0:
                                 if k == 9:
                                     break
-                                block_finished.value = k
+                                block_finished.value += 1
                                 print(
                                     f"\n\nCollected {k} groups. Press Enter key twice to continue")
                                 while True:

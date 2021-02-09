@@ -15,15 +15,15 @@ import pyautogui
 import ctypes
 import csv
 import datetime
-# import random
+import random
 import subprocess
 import socket
 from threading import Thread
 
 mo_threshold = 0.1
-to_threshold = 5
+to_threshold = 1
 tc_threshold = 15
-buffer_size = 15
+buffer_size = 20
 face_recognition_size = 120
 pyautogui.FAILSAFE = False
 
@@ -50,7 +50,7 @@ def socket_thread():
                     if data == b"g":
                         LipReading_flag = True
                         print("--------lip started-----------")
-                        gaze = subprocess.Popen("GazeCursor.exe")
+                        gaze = subprocess.Popen("GazeCursorClick.exe")
                         print("--------gaze started-----------")
                     elif data == b"s":
                         LipReading_flag = False
@@ -68,11 +68,11 @@ def socket_thread():
 
 
 def get(raw_array, top_flag, stat_flag, lip_rect):
-    # size = (500,500)
-    # fourcc = cv2.VideoWriter_fourcc(*"XVID")
-    # fps = 60
-    # save_name = f"H:/Gaze-Lip-Data/record{random.randint(1,10000)}.avi"
-    # video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
+    size = (500,500)
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    fps = 60
+    save_name = f"H:/Gaze-Lip-Data/Videos/record_poc{random.randint(1,10000)}.avi"
+    video_writer = cv2.VideoWriter(save_name, fourcc, fps, size)
 
     exp = -6
     brightness = 10
@@ -89,15 +89,13 @@ def get(raw_array, top_flag, stat_flag, lip_rect):
             np.copyto(X_1[top_flag.value % 100], frame)
             top_flag.value += 1
 
-        # if stat_flag.value == 2:
-        #     frame_copy = np.copy(frame)
-        #     cv2.rectangle(frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]),
-        #                   (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
-        #     cv2.imshow("window", frame_copy)
-        # else:
-        #     cv2.imshow("window", frame)
-        # cv2.waitKey(1)
-        # video_writer.write(frame)
+        if stat_flag.value == 2:
+            frame_copy = np.copy(frame)
+            cv2.rectangle(frame_copy, (lip_rect[0] - lip_rect[2], lip_rect[1] - lip_rect[3]),
+                          (lip_rect[0] + lip_rect[2], lip_rect[1] + lip_rect[3]), (0, 0, 255), 2)
+            video_writer.write(frame_copy)
+        else:
+            video_writer.write(frame)
 
 
 def calculate_rect(lip):
